@@ -10,6 +10,12 @@ typedef enum {
     op_zero,
     op_one,
     op_constant,
+    op_negate,
+    op_add,
+    op_subtract,
+    op_multiply,
+    op_divide,
+    op_return,
     opcode_count
 } Opcode;
 
@@ -27,3 +33,20 @@ void chunk_free(Chunk*);
 #ifdef DEBUG
 void chunk_debug(Chunk*, const char*);
 #endif
+
+#define STACK_SIZE 256
+
+typedef struct {
+    Chunk* chunk;
+    Value stack[STACK_SIZE];
+    Value* sp;
+    uint8_t* ip;
+} VM;
+
+typedef enum {
+    result_ok,
+    result_compile_error,
+    result_runtime_error,
+} result;
+
+result vm_run(VM*, Chunk*);
