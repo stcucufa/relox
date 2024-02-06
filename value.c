@@ -1,3 +1,4 @@
+#include <inttypes.h>
 #include "value.h"
 
 void value_print(FILE* stream, Value v) {
@@ -13,7 +14,7 @@ void value_print(FILE* stream, Value v) {
     }
 
 #ifdef DEBUG
-    fprintf(stream, "=%016llx", v.as_int);
+    fprintf(stream, "=0x%" PRIx64, v.as_int);
 #endif
 }
 

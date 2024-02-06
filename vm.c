@@ -2,10 +2,10 @@
 #include <stdio.h>
 #endif
 
+#include <math.h>
 #include <stdarg.h>
 
 #include "compiler.h"
-#include "math.h"
 #include "vm.h"
 
 void chunk_init(Chunk* chunk) {
