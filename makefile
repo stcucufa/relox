@@ -3,7 +3,7 @@ CFLAGS =	-Wall -pedantic -g -DDEBUG
 LDFLAGS =	-lm
 
 relox:	$(OBJECTS)
-	$(CC) -o $@ $(LDFLAGS) $(OBJECTS)
+	$(CC) $^ $(LDFLAGS) -o $@
 
 %.o:	%.c
 	$(CC) -c $(CFLAGS) $< -o $@
