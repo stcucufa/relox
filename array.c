@@ -1,9 +1,5 @@
 #include <stdlib.h>
 
-#ifdef DEBUG
-#include <stdio.h>
-#endif
-
 #include "array.h"
 
 void byte_array_init(ByteArray* array) {

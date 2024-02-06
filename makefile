@@ -1,5 +1,5 @@
-OBJECTS =	array.o main.o vm.o
-CFLAGS =	-Wall -pedantic -g -DDEBUG
+OBJECTS =	array.o lexer.o main.o vm.o
+CFLAGS =	-Wall -Werror -pedantic -g -DDEBUG
 
 relox:	$(OBJECTS)
 	$(CC) -o $@ $(OBJECTS)

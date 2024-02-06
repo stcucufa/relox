@@ -2,9 +2,10 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #define ARRAY_MIN_CAPACITY 8
-#define ARRAY_GROW_FACTOR 1.6
+#define ARRAY_GROW_FACTOR 1.618
 
 typedef struct {
     size_t count;
