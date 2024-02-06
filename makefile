@@ -1,8 +1,9 @@
-OBJECTS =	array.o lexer.o main.o vm.o
-CFLAGS =	-Wall -Werror -pedantic -g -DDEBUG
+OBJECTS =	array.o compiler.o lexer.o main.o vm.o
+CFLAGS =	-Wall -pedantic -g -DDEBUG
+LDFLAGS =	-lm
 
 relox:	$(OBJECTS)
-	$(CC) -o $@ $(OBJECTS)
+	$(CC) -o $@ $(LDFLAGS) $(OBJECTS)
 
 %.o:	%.c
 	$(CC) -c $(CFLAGS) $< -o $@

@@ -2,6 +2,8 @@
 #include <stdio.h>
 #endif
 
+#include "compiler.h"
+#include "math.h"
 #include "vm.h"
 
 void chunk_init(Chunk* chunk) {
@@ -45,7 +47,9 @@ char const*const opcodes[opcode_count] = {
     [op_subtract] = "subtract",
     [op_multiply] = "multiply",
     [op_divide] = "divide",
+    [op_exponent] = "exponent",
     [op_return] = "return",
+    [op_nop] = "nop",
 };
 
 void chunk_debug(Chunk* chunk, const char* name) {
@@ -64,6 +68,7 @@ void chunk_debug(Chunk* chunk, const char* name) {
             case op_subtract:
             case op_multiply:
             case op_divide:
+            case op_exponent:
             case op_return:
                 fprintf(stderr, "    %s\n", opcodes[opcode]);
                 break;
@@ -87,9 +92,20 @@ void chunk_debug(Chunk* chunk, const char* name) {
 
 #endif
 
-result vm_run(VM* vm, Chunk* chunk) {
-    vm->chunk = chunk;
-    vm->ip = chunk->bytes.bytes;
+Result vm_run(VM* vm, const char* source) {
+    Chunk chunk;
+    chunk_init(&chunk);
+    if (!compile_chunk(source, &chunk)) {
+        chunk_free(&chunk);
+        return result_compile_error;
+    }
+
+#ifdef DEBUG
+    chunk_debug(&chunk, "Compiled chunk");
+#endif
+
+    vm->chunk = &chunk;
+    vm->ip = chunk.bytes.bytes;
     vm->sp = vm->stack;
 
 #define BYTE() *vm->ip++
@@ -105,17 +121,23 @@ result vm_run(VM* vm, Chunk* chunk) {
     uint8_t opcode;
     do {
 #ifdef DEBUG
-        fprintf(stderr, "~~~ %4zu ", vm->ip - chunk->bytes.bytes);
+        fprintf(stderr, "~~~ %4zu ", vm->ip - chunk.bytes.bytes);
 #endif
         switch (opcode = BYTE()) {
             case op_zero: PUSH(0); break;
             case op_one: PUSH(1); break;
-            case op_constant: PUSH(chunk->values.items[BYTE()]); break;
+            case op_constant: PUSH(chunk.values.items[BYTE()]); break;
             case op_negate: POKE(0, -PEEK(0)); break;
             case op_add: BINARY_OP(+); break;
             case op_subtract: BINARY_OP(-); break;
             case op_multiply: BINARY_OP(*); break;
             case op_divide: BINARY_OP(/); break;
+            case op_exponent: {
+                double v = POP();
+                POKE(0, pow(PEEK(0), v));
+                break;
+            }
+            case op_nop: break;
         }
 #ifdef DEBUG
         fprintf(stderr, "%s {", opcodes[opcode]);
@@ -126,6 +148,7 @@ result vm_run(VM* vm, Chunk* chunk) {
 #endif
     } while (opcode != op_return);
 
+    chunk_free(&chunk);
     return result_ok;
 
 #undef BYTE

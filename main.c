@@ -3,7 +3,7 @@
 #include <string.h>
 
 #include "array.h"
-#include "lexer.h"
+#include "vm.h"
 
 static const char* read_file(const char* path) {
     FILE* file = fopen(path, "r");
@@ -43,15 +43,8 @@ static const char* read_stdin(void) {
 }
 
 int main(int argc, char* argv[argc + 1]) {
-    Lexer lexer;
+    VM vm;
     const char* source = argc == 1 || strcmp(argv[1], "-") == 0 ? read_stdin() : read_file(argv[1]);
-    lexer_init(&lexer, source);
-    while (lexer.last != token_error && lexer.last != token_eof) {
-        Token token = lexer_advance(&lexer);
-#ifdef DEBUG
-        token_debug(token);
-#endif
-        lexer.last = token.type;
-    }
-    return lexer.last == token_eof ? EXIT_SUCCESS : EXIT_FAILURE;
+    Result result = vm_run(&vm, source);
+    return result == result_ok ? EXIT_SUCCESS : EXIT_FAILURE;
 }

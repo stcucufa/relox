@@ -1,4 +1,5 @@
-#pragma once
+#ifndef __ARRAY_H__
+#define __ARRAY_H__
 
 #include <stddef.h>
 #include <stdint.h>
@@ -38,3 +39,5 @@ typedef struct {
 void value_array_init(ValueArray*);
 void value_array_push(ValueArray*, Value);
 void value_array_free(ValueArray*);
+
+#endif

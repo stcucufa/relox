@@ -1,4 +1,5 @@
-#pragma once
+#ifndef __VM_H__
+#define __VM_H__
 
 #include <stdint.h>
 #include <stddef.h>
@@ -15,7 +16,9 @@ typedef enum {
     op_subtract,
     op_multiply,
     op_divide,
+    op_exponent,
     op_return,
+    op_nop,
     opcode_count
 } Opcode;
 
@@ -47,6 +50,8 @@ typedef enum {
     result_ok,
     result_compile_error,
     result_runtime_error,
-} result;
+} Result;
 
-result vm_run(VM*, Chunk*);
+Result vm_run(VM*, const char*);
+
+#endif

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef __TYPES_H__
+#define __TYPES_H__
 
 #include <stddef.h>
 #include <stdint.h>
@@ -15,3 +16,5 @@ typedef struct {
 void byte_array_init(ByteArray*);
 void byte_array_push(ByteArray*, uint8_t);
 void byte_array_free(ByteArray*);
+
+#endif

@@ -26,6 +26,7 @@ char const*const tokens[token_count] = {
     [token_bang_equal] = "bang + equal",
     [token_le] = "le",
     [token_equal_equal] = "equal + equal",
+    [token_star_star] = "star + star",
     [token_ge] = "ge",
     [token_string] = "string",
     [token_string_prefix] = "string prefix",
@@ -53,12 +54,9 @@ char const*const tokens[token_count] = {
     [token_error] = "error",
 };
 
-void token_debug(Token token) {
-    fputc('"', stderr);
-    for (size_t i = 0; i < token.length; ++i) {
-        fputc(*(token.start + i), stderr);
-    }
-    fprintf(stderr, "\" (%s, line %zu)\n", tokens[token.type], token.line);
+void token_debug(Token* token) {
+    fprintf(stderr, "`%.*s` (%s, line %zu)\n",
+        (int)token->length, token->start, tokens[token->type], token->line);
 }
 
 #endif
@@ -73,6 +71,8 @@ static Token lexer_token(Lexer* lexer, Token_Type type) {
 }
 
 static Token lexer_error(Lexer* lexer, const char* message) {
+    fprintf(stderr, "!!! Parse error, line %zu (near `%.*s`): %s\n",
+        lexer->line, (int)(lexer->current - lexer->start), lexer->start, message);
     Token token;
     token.type = token_error;
     token.start = message;
@@ -114,7 +114,7 @@ static void lexer_skip_whitespace_and_comments(Lexer* lexer) {
 Token lexer_string(Lexer* lexer, char open) {
     for (;;) {
         switch (*lexer->current++) {
-            case 0: return lexer_error(lexer, "Unterminated string literal.");
+            case 0: return lexer_error(lexer, "unterminated string literal.");
             case '"':
                 if (lexer->string_nesting == 0) {
                     return lexer_token(lexer, token_string);
@@ -195,7 +195,7 @@ Token lexer_advance(Lexer* lexer) {
             return lexer_string(lexer, c);
         case '(': return TOKEN(token_open_paren);
         case ')': return TOKEN(token_close_paren);
-        case '*': return TOKEN(token_star);
+        case '*': return TOKEN(MATCH('*') ? token_star_star : token_star);
         case '+': return TOKEN(token_plus);
         case ',': return TOKEN(token_comma);
         case '-': return TOKEN(token_minus);
@@ -224,7 +224,7 @@ Token lexer_advance(Lexer* lexer) {
         return TOKEN(lexer_identifier_or_keyword(lexer));
     }
 
-    return lexer_error(lexer, "Unexpected character.");
+    return lexer_error(lexer, "unexpected character.");
 
 #undef MATCH
 #undef TOKEN

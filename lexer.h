@@ -1,4 +1,5 @@
-#pragma once
+#ifndef __LEXER_H__
+#define __LEXER_H__
 
 #include <stdlib.h>
 
@@ -20,6 +21,7 @@ typedef enum {
     token_open_brace,
     token_close_brace,
     token_bang_equal,
+    token_star_star,
     token_le,
     token_equal_equal,
     token_ge,
@@ -51,14 +53,6 @@ typedef enum {
 } Token_Type;
 
 typedef struct {
-    const char* start;
-    const char* current;
-    size_t line;
-    size_t string_nesting;
-    Token_Type last;
-} Lexer;
-
-typedef struct {
     Token_Type type;
     const char* start;
     size_t length;
@@ -66,8 +60,18 @@ typedef struct {
 } Token;
 
 #ifdef DEBUG
-void token_debug(Token);
+void token_debug(Token*);
 #endif
+
+typedef struct {
+    const char* start;
+    const char* current;
+    size_t line;
+    size_t string_nesting;
+    Token_Type last;
+} Lexer;
 
 void lexer_init(Lexer*, const char*);
 Token lexer_advance(Lexer* lexer);
+
+#endif
