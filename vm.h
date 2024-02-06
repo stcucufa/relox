@@ -8,6 +8,7 @@
 #include "value.h"
 
 typedef enum {
+    op_nil,
     op_zero,
     op_one,
     op_constant,
@@ -17,6 +18,15 @@ typedef enum {
     op_multiply,
     op_divide,
     op_exponent,
+    op_false,
+    op_true,
+    op_not,
+    op_eq,
+    op_ne,
+    op_gt,
+    op_ge,
+    op_lt,
+    op_le,
     op_return,
     op_nop,
     opcode_count

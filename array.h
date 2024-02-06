@@ -11,7 +11,7 @@
 typedef struct {
     size_t count;
     size_t capacity;
-    uint8_t* bytes;
+    uint8_t* items;
 } ByteArray;
 
 void byte_array_init(ByteArray*);

@@ -35,9 +35,9 @@ static const char* read_stdin(void) {
     while (!feof(stdin)) {
         byte_array_push(&buffer, getchar());
     }
-    buffer.bytes[buffer.count - 1] = 0;
+    buffer.items[buffer.count - 1] = 0;
     char* output = (char*)malloc(buffer.count);
-    memcpy(output, buffer.bytes, buffer.count);
+    memcpy(output, buffer.items, buffer.count);
     byte_array_free(&buffer);
     return output;
 }

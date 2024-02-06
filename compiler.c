@@ -8,11 +8,12 @@ struct Compiler;
 typedef enum {
     precedence_eof,
     precedence_none,
+    precedence_equality,
+    precedence_inequality,
     precedence_addition,
     precedence_multiplication,
     precedence_exponentiation,
     precedence_unary,
-    precedence_infinity,
 } Precedence;
 
 typedef void (*Denotation)(struct Compiler*);
@@ -48,51 +49,43 @@ static void compiler_error(Compiler* compiler, Token* token, const char* message
 
 static void compiler_advance(Compiler*);
 
-static void compiler_parse(Compiler* compiler, Precedence precedence) {
+static bool compiler_parse(Compiler* compiler, Precedence precedence) {
     Denotation nud = rules[compiler->current_token.type].nud;
-    if (!nud) {
-        compiler_error(compiler, &compiler->current_token, "expected a left operand");
-        return;
-    }
-    nud(compiler);
-    if (compiler->error) {
-        return;
-    }
-    while (precedence <= rules[compiler->current_token.type].precedence) {
-        compiler_advance(compiler);
-        Denotation led = rules[compiler->previous_token.type].led;
-        if (!led) {
-            compiler_error(compiler, &compiler->previous_token, "expected no left operand");
-            return;
-        }
-        led(compiler);
-        if (compiler->error) {
-            return;
+    if (nud) {
+        nud(compiler);
+        while (!compiler->error && rules[compiler->current_token.type].precedence > precedence) {
+            compiler_advance(compiler);
+            Denotation led = rules[compiler->previous_token.type].led;
+            if (led) {
+                led(compiler);
+            } else {
+                compiler_error(compiler, &compiler->previous_token, "expected no left operand");
+            }
         }
     }
+    return !compiler->error;
 }
 
 static void compiler_consume(Compiler* compiler, Token_Type type, const char* message) {
-    if (compiler->current_token.type != type) {
+    if (compiler->current_token.type == type) {
+        compiler_advance(compiler);
+    } else {
         compiler_error(compiler, &compiler->current_token, message);
-        return;
     }
-    compiler_advance(compiler);
 }
 
 static void compiler_emit_byte(Compiler* compiler, uint8_t byte) {
-    if (!compiler->error) {
-        chunk_add_byte(compiler->chunk, byte, compiler->lexer->line);
+    chunk_add_byte(compiler->chunk, byte, compiler->lexer->line);
+}
+
+static void nud_group(Compiler* compiler) {
+    compiler_advance(compiler);
+    if (compiler_parse(compiler, precedence_none)) {
+        compiler_consume(compiler, token_close_paren, "expected `)`");
     }
 }
 
-static void group(Compiler* compiler) {
-    compiler_advance(compiler);
-    compiler_parse(compiler, precedence_none);
-    compiler_consume(compiler, token_close_paren, "expected `)`");
-}
-
-static void number(Compiler* compiler) {
+static void nud_number(Compiler* compiler) {
     double value = strtod(compiler->lexer->start, 0);
     if (value == 0.0) {
         compiler_emit_byte(compiler, op_zero);
@@ -100,23 +93,42 @@ static void number(Compiler* compiler) {
         compiler_emit_byte(compiler, op_one);
     } else {
         compiler_emit_byte(compiler, op_constant);
-        compiler_emit_byte(compiler, (uint8_t)chunk_add_constant(compiler->chunk, value));
+        compiler_emit_byte(
+            compiler, (uint8_t)chunk_add_constant(compiler->chunk, VALUE_FROM_NUMBER(value))
+        );
     }
     compiler_advance(compiler);
 }
 
-static void unary_op(Compiler* compiler) {
+static void nud_false(Compiler* compiler) {
+    compiler_emit_byte(compiler, op_false);
+    compiler_advance(compiler);
+}
+
+static void nud_nil(Compiler* compiler) {
+    compiler_emit_byte(compiler, op_nil);
+    compiler_advance(compiler);
+}
+
+static void nud_true(Compiler* compiler) {
+    compiler_emit_byte(compiler, op_true);
+    compiler_advance(compiler);
+}
+
+static void nud_unary_op(Compiler* compiler) {
     uint8_t op = op_nop;
     switch (compiler->current_token.type) {
+        case token_bang: op = op_not; break;
         case token_minus: op = op_negate; break;
         default: break;
     }
     compiler_advance(compiler);
-    compiler_parse(compiler, precedence_unary);
-    compiler_emit_byte(compiler, op);
+    if (compiler_parse(compiler, precedence_unary)) {
+        compiler_emit_byte(compiler, op);
+    }
 }
 
-static void binary_op(Compiler* compiler) {
+static void led_binary_op(Compiler* compiler) {
     Token_Type t = compiler->previous_token.type;
     uint8_t op = op_nop;
     switch (t) {
@@ -124,31 +136,50 @@ static void binary_op(Compiler* compiler) {
         case token_plus: op = op_add; break;
         case token_minus: op = op_subtract; break;
         case token_slash: op = op_divide; break;
+        case token_lt: op = op_lt; break;
+        case token_gt: op = op_gt; break;
+        case token_bang_equal: op = op_ne; break;
+        case token_le: op = op_le; break;
+        case token_equal_equal: op = op_eq; break;
+        case token_ge: op = op_ge; break;
         default: break;
     }
-    compiler_parse(compiler, rules[t].precedence);
-    compiler_emit_byte(compiler, op);
+    if (compiler_parse(compiler, rules[t].precedence)) {
+        compiler_emit_byte(compiler, op);
+    }
 }
 
-static void right_op(Compiler* compiler) {
+static void led_right_op(Compiler* compiler) {
     Token_Type t = compiler->previous_token.type;
     uint8_t op = op_nop;
     switch (t) {
         case token_star_star: op = op_exponent; break;
         default: break;
     }
-    compiler_parse(compiler, rules[t].precedence - 1);
-    compiler_emit_byte(compiler, op);
+    if (compiler_parse(compiler, rules[t].precedence - 1)) {
+        compiler_emit_byte(compiler, op);
+    }
 }
 
 Rule rules[] = {
-    [token_open_paren] = { group, 0, precedence_none },
-    [token_star] = { 0, binary_op, precedence_multiplication },
-    [token_plus] = { unary_op, binary_op, precedence_addition },
-    [token_minus] = { unary_op, binary_op, precedence_addition },
-    [token_slash] = { 0, binary_op, precedence_multiplication },
-    [token_star_star] = { 0, right_op, precedence_exponentiation },
-    [token_number] = { number, 0, precedence_none },
+    [token_bang] = { nud_unary_op, 0, precedence_none },
+    [token_open_paren] = { nud_group, 0, precedence_none },
+    [token_close_paren] = { 0, 0, precedence_none },
+    [token_star] = { 0, led_binary_op, precedence_multiplication },
+    [token_plus] = { nud_unary_op, led_binary_op, precedence_addition },
+    [token_minus] = { nud_unary_op, led_binary_op, precedence_addition },
+    [token_slash] = { 0, led_binary_op, precedence_multiplication },
+    [token_lt] = { 0, led_binary_op, precedence_inequality },
+    [token_gt] = { 0, led_binary_op, precedence_inequality },
+    [token_bang_equal] = { 0, led_binary_op, precedence_equality },
+    [token_le] = { 0, led_binary_op, precedence_inequality },
+    [token_equal_equal] = { 0, led_binary_op, precedence_equality },
+    [token_ge] = { 0, led_binary_op, precedence_inequality },
+    [token_star_star] = { 0, led_right_op, precedence_exponentiation },
+    [token_number] = { nud_number, 0, precedence_none },
+    [token_false] = { nud_false, 0, precedence_none },
+    [token_nil] = { nud_nil, 0, precedence_none },
+    [token_true] = { nud_true, 0, precedence_none },
     [token_eof] = { 0, 0, precedence_eof },
 };
 
@@ -165,10 +196,11 @@ bool compile_chunk(const char* source, Chunk* chunk) {
     compiler.lexer = &lexer;
     compiler.error = false;
     compiler_advance(&compiler);
-    compiler_parse(&compiler, precedence_none);
-    if (!compiler.error) {
+    if (compiler_parse(&compiler, precedence_none)) {
         compiler_consume(&compiler, token_eof, "expected end of input");
-        compiler_emit_byte(&compiler, op_return);
+        if (!compiler.error) {
+            compiler_emit_byte(&compiler, op_return);
+        }
     }
     return !compiler.error;
 }

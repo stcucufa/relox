@@ -5,29 +5,29 @@
 void byte_array_init(ByteArray* array) {
     array->count = 0;
     array->capacity = 0;
-    array->bytes = 0;
+    array->items = 0;
 }
 
 void byte_array_push(ByteArray* array, uint8_t byte) {
     if (array->count == array->capacity) {
         array->capacity = array->capacity < ARRAY_MIN_CAPACITY ?
             ARRAY_MIN_CAPACITY : ARRAY_GROW_FACTOR * array->capacity;
-        array->bytes = realloc(array->bytes, array->capacity);
+        array->items = realloc(array->items, array->capacity);
 #ifdef DEBUG
         fprintf(stderr, "+++ byte_array_push() growing %p to %zu bytes.\n",
-            (void*) array->bytes, array->capacity);
+            (void*) array->items, array->capacity);
 #endif
     }
-    array->bytes[array->count] = byte;
+    array->items[array->count] = byte;
     array->count += 1;
 }
 
 void byte_array_free(ByteArray* array) {
 #ifdef DEBUG
-    fprintf(stderr, "--- byte_array_free() free %p (%zu/%zu bytes).\n",
-        (void*) array->bytes, array->count, array->capacity);
+    fprintf(stderr, "--- byte_array_free() free %p (%zu/%zu items).\n",
+        (void*) array->items, array->count, array->capacity);
 #endif
-    free(array->bytes);
+    free(array->items);
     byte_array_init(array);
 }
 
