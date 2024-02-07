@@ -8,11 +8,11 @@ void value_print(FILE* stream, Value v) {
     if (VALUE_IS_NUMBER(v)) {
         fprintf(stream, "%g", v.as_double);
     } else {
-        switch (v.as_int & 7) {
-            case 1: fprintf(stream, "nil"); break;
-            case 2: fprintf(stream, "false"); break;
-            case 3: fprintf(stream, "true"); break;
-            case 4: fprintf(stream, "%s", VALUE_TO_CSTRING(v)); break;
+        switch (VALUE_TAG(v)) {
+            case tag_nil: fprintf(stream, "nil"); break;
+            case tag_false: fprintf(stream, "false"); break;
+            case tag_true: fprintf(stream, "true"); break;
+            case tag_string: fprintf(stream, "%s", VALUE_TO_CSTRING(v)); break;
             default: fprintf(stream, "???");
         }
     }
@@ -23,6 +23,11 @@ void value_print(FILE* stream, Value v) {
 }
 
 bool value_equal(Value x, Value y) {
+    if (VALUE_IS_STRING(x) && VALUE_IS_STRING(y)) {
+        String *s = VALUE_TO_STRING(x);
+        String *t = VALUE_TO_STRING(y);
+        return s->length == t->length && memcmp(s->chars, t->chars, s->length) == 0;
+    }
     return x.as_int == y.as_int;
 }
 
@@ -33,4 +38,15 @@ Value value_string_copy(const char* start, size_t length) {
     memcpy(string->chars, start, length);
     string->chars[length] = 0;
     return VALUE_FROM_STRING(string);
+}
+
+Value value_string_concatenate(Value x, Value y) {
+    String* s = VALUE_TO_STRING(x);
+    String* t = VALUE_TO_STRING(y);
+    String* st = malloc(sizeof(String));
+    st->length = s->length + t->length;
+    st->chars = malloc(st->length + 1);
+    memcpy(st->chars, s->chars, s->length);
+    memcpy(st->chars + s->length, t->chars, t->length);
+    return VALUE_FROM_STRING(st);
 }

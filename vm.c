@@ -190,7 +190,15 @@ Result vm_run(VM* vm, const char* source) {
                 break;
             case op_add: BINARY_OP_NUMBER(+); break;
             case op_subtract: BINARY_OP_NUMBER(-); break;
-            case op_multiply: BINARY_OP_NUMBER(*); break;
+            case op_multiply: {
+                if (VALUE_IS_STRING(PEEK(0)) && VALUE_IS_STRING(PEEK(1))) {
+                    Value v = POP();
+                    POKE(0, value_string_concatenate(PEEK(0), v));
+                } else {
+                    BINARY_OP_NUMBER(*);
+                }
+                break;
+            }
             case op_divide: BINARY_OP_NUMBER(/); break;
             case op_exponent: {
                 if (!VALUE_IS_NUMBER(PEEK(1))) {
