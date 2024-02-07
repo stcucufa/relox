@@ -30,23 +30,3 @@ bool value_equal(Value x, Value y) {
     }
     return x.as_int == y.as_int;
 }
-
-Value value_string_copy(const char* start, size_t length) {
-    String* string = malloc(sizeof(String));
-    string->length = length;
-    string->chars = malloc(length + 1);
-    memcpy(string->chars, start, length);
-    string->chars[length] = 0;
-    return VALUE_FROM_STRING(string);
-}
-
-Value value_string_concatenate(Value x, Value y) {
-    String* s = VALUE_TO_STRING(x);
-    String* t = VALUE_TO_STRING(y);
-    String* st = malloc(sizeof(String));
-    st->length = s->length + t->length;
-    st->chars = malloc(st->length + 1);
-    memcpy(st->chars, s->chars, s->length);
-    memcpy(st->chars + s->length, t->chars, t->length);
-    return VALUE_FROM_STRING(st);
-}

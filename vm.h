@@ -5,6 +5,7 @@
 #include <stddef.h>
 
 #include "array.h"
+#include "object.h"
 #include "value.h"
 
 typedef enum {
@@ -54,6 +55,7 @@ typedef struct {
     Value stack[STACK_SIZE];
     Value* sp;
     uint8_t* ip;
+    Obj* objects;
 } VM;
 
 typedef enum {

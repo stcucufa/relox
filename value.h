@@ -5,10 +5,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-typedef struct {
-    size_t length;
-    char* chars;
-} String;
+#include "object.h"
 
 typedef union {
     double as_double;
@@ -46,7 +43,5 @@ enum {
 
 void value_print(FILE*, Value);
 bool value_equal(Value, Value);
-Value value_string_copy(const char*, size_t);
-Value value_string_concatenate(Value, Value);
 
 #endif

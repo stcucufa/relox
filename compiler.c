@@ -2,6 +2,8 @@
 
 #include "compiler.h"
 #include "lexer.h"
+#include "object.h"
+#include "value.h"
 
 struct Compiler;
 
@@ -92,7 +94,7 @@ static void nud_group(Compiler* compiler) {
 
 static void nud_string(Compiler* compiler) {
     Token token = compiler->previous_token;
-    compiler_emit_constant(compiler, value_string_copy(token.start + 1, token.length - 2));
+    compiler_emit_constant(compiler, VALUE_FROM_STRING(string_copy(token.start + 1, token.length - 2)));
 }
 
 static void nud_number(Compiler* compiler) {

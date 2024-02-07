@@ -129,6 +129,11 @@ static Result runtime_error(VM* vm, const char* format, ...) {
     return result_runtime_error;
 }
 
+static void vm_add_object(VM* vm, Obj* obj) {
+    obj->next = vm->objects;
+    vm->objects = obj;
+}
+
 Result vm_run(VM* vm, const char* source) {
     Chunk chunk;
     chunk_init(&chunk);
@@ -144,6 +149,7 @@ Result vm_run(VM* vm, const char* source) {
     vm->chunk = &chunk;
     vm->ip = chunk.bytes.items;
     vm->sp = vm->stack;
+    vm->objects = 0;
 
 #define BYTE() *vm->ip++
 #define PUSH(x) *vm->sp++ = (x)
@@ -193,7 +199,9 @@ Result vm_run(VM* vm, const char* source) {
             case op_multiply: {
                 if (VALUE_IS_STRING(PEEK(0)) && VALUE_IS_STRING(PEEK(1))) {
                     Value v = POP();
-                    POKE(0, value_string_concatenate(PEEK(0), v));
+                    String* string = string_concatenate(VALUE_TO_STRING(PEEK(0)), VALUE_TO_STRING(v));
+                    vm_add_object(vm, string->obj);
+                    POKE(0, VALUE_FROM_STRING(string));
                 } else {
                     BINARY_OP_NUMBER(*);
                 }
