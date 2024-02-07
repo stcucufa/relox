@@ -190,9 +190,7 @@ Token lexer_advance(Lexer* lexer) {
     char c = *lexer->current++;
     switch (c) {
         case '!': return TOKEN(MATCH('=') ? token_bang_equal : token_bang);
-        case '"':
-            lexer->string_nesting += 1;
-            return lexer_string(lexer, c);
+        case '"': return lexer_string(lexer, c);
         case '(': return TOKEN(token_open_paren);
         case ')': return TOKEN(token_close_paren);
         case '*': return TOKEN(MATCH('*') ? token_star_star : token_star);

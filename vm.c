@@ -129,9 +129,15 @@ static Result runtime_error(VM* vm, const char* format, ...) {
     return result_runtime_error;
 }
 
+void vm_add_object(VM* vm, Value v) {
+    value_array_push(&vm->objects, v);
+}
+
 Result vm_run(VM* vm, const char* source) {
     Chunk chunk;
     chunk_init(&chunk);
+    chunk.vm = vm;
+    value_array_init(&vm->objects);
     if (!compile_chunk(source, &chunk)) {
         chunk_free(&chunk);
         return result_compile_error;
@@ -190,7 +196,19 @@ Result vm_run(VM* vm, const char* source) {
                 break;
             case op_add: BINARY_OP_NUMBER(+); break;
             case op_subtract: BINARY_OP_NUMBER(-); break;
-            case op_multiply: BINARY_OP_NUMBER(*); break;
+            case op_multiply: {
+                if (VALUE_IS_STRING(PEEK(0)) && VALUE_IS_STRING(PEEK(1))) {
+                    Value v = POP();
+                    Value string = VALUE_FROM_STRING(
+                        string_concatenate(VALUE_TO_STRING(PEEK(0)), VALUE_TO_STRING(v))
+                    );
+                    vm_add_object(vm, string);
+                    POKE(0, string);
+                } else {
+                    BINARY_OP_NUMBER(*);
+                }
+                break;
+            }
             case op_divide: BINARY_OP_NUMBER(/); break;
             case op_exponent: {
                 if (!VALUE_IS_NUMBER(PEEK(1))) {
@@ -243,4 +261,11 @@ Result vm_run(VM* vm, const char* source) {
 #undef POKE
 #undef PEEK
 #undef BINARY_OP
+}
+
+void vm_free(VM* vm) {
+    for (size_t i = 0; i < vm->objects.count; ++i) {
+        value_free_object(vm->objects.items[i]);
+    }
+    value_array_free(&vm->objects);
 }

@@ -5,6 +5,7 @@
 #include <stddef.h>
 
 #include "array.h"
+#include "object.h"
 #include "value.h"
 
 typedef enum {
@@ -32,7 +33,10 @@ typedef enum {
     opcode_count
 } Opcode;
 
+typedef struct VM VM;
+
 typedef struct {
+    struct VM* vm;
     ByteArray bytes;
     NumberArray line_numbers;
     ValueArray values;
@@ -49,11 +53,12 @@ void chunk_debug(Chunk*, const char*);
 
 #define STACK_SIZE 256
 
-typedef struct {
+typedef struct VM {
     Chunk* chunk;
     Value stack[STACK_SIZE];
     Value* sp;
     uint8_t* ip;
+    ValueArray objects;
 } VM;
 
 typedef enum {
@@ -62,6 +67,8 @@ typedef enum {
     result_runtime_error,
 } Result;
 
+void vm_add_object(VM*, Value);
 Result vm_run(VM*, const char*);
+void vm_free(VM*);
 
 #endif
