@@ -52,6 +52,7 @@ static void compiler_advance(Compiler*);
 static bool compiler_parse(Compiler* compiler, Precedence precedence) {
     Denotation nud = rules[compiler->current_token.type].nud;
     if (nud) {
+        compiler_advance(compiler);
         nud(compiler);
         while (!compiler->error && rules[compiler->current_token.type].precedence > precedence) {
             compiler_advance(compiler);
@@ -78,51 +79,52 @@ static void compiler_emit_byte(Compiler* compiler, uint8_t byte) {
     chunk_add_byte(compiler->chunk, byte, compiler->lexer->line);
 }
 
+static void compiler_emit_constant(Compiler* compiler, Value value) {
+    compiler_emit_byte(compiler, op_constant);
+    compiler_emit_byte(compiler, (uint8_t)chunk_add_constant(compiler->chunk, value));
+}
+
 static void nud_group(Compiler* compiler) {
-    compiler_advance(compiler);
     if (compiler_parse(compiler, precedence_none)) {
         compiler_consume(compiler, token_close_paren, "expected `)`");
     }
 }
 
+static void nud_string(Compiler* compiler) {
+    Token token = compiler->previous_token;
+    compiler_emit_constant(compiler, value_string_copy(token.start + 1, token.length - 2));
+}
+
 static void nud_number(Compiler* compiler) {
-    double value = strtod(compiler->lexer->start, 0);
+    double value = strtod(compiler->previous_token.start, 0);
     if (value == 0.0) {
         compiler_emit_byte(compiler, op_zero);
     } else if (value == 1.0) {
         compiler_emit_byte(compiler, op_one);
     } else {
-        compiler_emit_byte(compiler, op_constant);
-        compiler_emit_byte(
-            compiler, (uint8_t)chunk_add_constant(compiler->chunk, VALUE_FROM_NUMBER(value))
-        );
+        compiler_emit_constant(compiler, VALUE_FROM_NUMBER(value));
     }
-    compiler_advance(compiler);
 }
 
 static void nud_false(Compiler* compiler) {
     compiler_emit_byte(compiler, op_false);
-    compiler_advance(compiler);
 }
 
 static void nud_nil(Compiler* compiler) {
     compiler_emit_byte(compiler, op_nil);
-    compiler_advance(compiler);
 }
 
 static void nud_true(Compiler* compiler) {
     compiler_emit_byte(compiler, op_true);
-    compiler_advance(compiler);
 }
 
 static void nud_unary_op(Compiler* compiler) {
     uint8_t op = op_nop;
-    switch (compiler->current_token.type) {
+    switch (compiler->previous_token.type) {
         case token_bang: op = op_not; break;
         case token_minus: op = op_negate; break;
         default: break;
     }
-    compiler_advance(compiler);
     if (compiler_parse(compiler, precedence_unary)) {
         compiler_emit_byte(compiler, op);
     }
@@ -175,6 +177,7 @@ Rule rules[] = {
     [token_le] = { 0, led_binary_op, precedence_inequality },
     [token_equal_equal] = { 0, led_binary_op, precedence_equality },
     [token_ge] = { 0, led_binary_op, precedence_inequality },
+    [token_string] = { nud_string, 0, precedence_none },
     [token_star_star] = { 0, led_right_op, precedence_exponentiation },
     [token_number] = { nud_number, 0, precedence_none },
     [token_false] = { nud_false, 0, precedence_none },
@@ -186,6 +189,12 @@ Rule rules[] = {
 static void compiler_advance(Compiler* compiler) {
     compiler->previous_token = compiler->current_token;
     compiler->current_token = lexer_advance(compiler->lexer);
+
+#ifdef DEBUG
+    fprintf(stderr, ">>> Current token: ");
+    token_debug(&compiler->current_token);
+    fputs("", stderr);
+#endif
 }
 
 bool compile_chunk(const char* source, Chunk* chunk) {
