@@ -16,6 +16,7 @@ typedef union {
 #define OBJECT_MASK 0x0000fffffffffff8
 
 enum {
+    tag_nan = 0,
     tag_nil = 1,
     tag_false = 2,
     tag_true = 3,
@@ -43,5 +44,6 @@ enum {
 
 void value_print(FILE*, Value);
 bool value_equal(Value, Value);
+void value_free_object(Value);
 
 #endif

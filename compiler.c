@@ -94,7 +94,9 @@ static void nud_group(Compiler* compiler) {
 
 static void nud_string(Compiler* compiler) {
     Token token = compiler->previous_token;
-    compiler_emit_constant(compiler, VALUE_FROM_STRING(string_copy(token.start + 1, token.length - 2)));
+    Value string = VALUE_FROM_STRING(string_copy(token.start + 1, token.length - 2));
+    vm_add_object(compiler->chunk->vm, string);
+    compiler_emit_constant(compiler, string);
 }
 
 static void nud_number(Compiler* compiler) {

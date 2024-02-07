@@ -46,5 +46,6 @@ int main(int argc, char* argv[argc + 1]) {
     VM vm;
     const char* source = argc == 1 || strcmp(argv[1], "-") == 0 ? read_stdin() : read_file(argv[1]);
     Result result = vm_run(&vm, source);
+    vm_free(&vm);
     return result == result_ok ? EXIT_SUCCESS : EXIT_FAILURE;
 }

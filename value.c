@@ -28,5 +28,11 @@ bool value_equal(Value x, Value y) {
         String *t = VALUE_TO_STRING(y);
         return s->length == t->length && memcmp(s->chars, t->chars, s->length) == 0;
     }
-    return x.as_int == y.as_int;
+    return x.as_double == y.as_double;
+}
+
+void value_free_object(Value v) {
+    if (VALUE_IS_STRING(v)) {
+        string_free(VALUE_TO_STRING(v));
+    }
 }
