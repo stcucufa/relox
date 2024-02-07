@@ -193,12 +193,6 @@ Rule rules[] = {
 static void compiler_advance(Compiler* compiler) {
     compiler->previous_token = compiler->current_token;
     compiler->current_token = lexer_advance(compiler->lexer);
-
-#ifdef DEBUG
-    fprintf(stderr, ">>> Current token: ");
-    token_debug(&compiler->current_token);
-    fputs("", stderr);
-#endif
 }
 
 bool compile_chunk(const char* source, Chunk* chunk) {

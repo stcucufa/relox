@@ -38,4 +38,5 @@ void string_free(String* string) {
         string->chars, (void*)string->chars, string->length);
 #endif
     free(string->chars);
+    free(string);
 }
