@@ -117,7 +117,7 @@ Token lexer_string(Lexer* lexer, char open) {
         switch (*lexer->current++) {
             case 0: return lexer_error(lexer, "unterminated string literal.");
             case '"':
-                if (lexer->string_nesting == 0) {
+                if (open == '"') {
                     return lexer_token(lexer, token_string);
                 }
                 lexer->string_nesting -= 1;
