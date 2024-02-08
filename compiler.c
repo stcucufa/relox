@@ -87,12 +87,6 @@ static void compiler_emit_constant(Compiler* compiler, Value value) {
     compiler_emit_byte(compiler, (uint8_t)chunk_add_constant(compiler->chunk, value));
 }
 
-static void nud_group(Compiler* compiler) {
-    if (compiler_parse(compiler, precedence_none)) {
-        compiler_consume(compiler, token_close_paren, "expected `)`");
-    }
-}
-
 static void compiler_string_constant(Compiler* compiler, Token* token) {
     Value string = VALUE_FROM_STRING(string_copy(token->start + 1, token->length - (
         token->type == token_string_prefix || token->type == token_string_infix ? 3 : 2
@@ -102,10 +96,6 @@ static void compiler_string_constant(Compiler* compiler, Token* token) {
 #endif
     vm_add_object(compiler->chunk->vm, string);
     compiler_emit_constant(compiler, string);
-}
-
-static void nud_string(Compiler* compiler) {
-    compiler_string_constant(compiler, &compiler->previous_token);
 }
 
 static void compiler_string_interpolation(Compiler* compiler) {
@@ -118,6 +108,16 @@ static void compiler_string_interpolation(Compiler* compiler) {
             compiler_error(compiler, &compiler->current_token, "expected a continuing string");
         }
     }
+}
+
+static void nud_group(Compiler* compiler) {
+    if (compiler_parse(compiler, precedence_none)) {
+        compiler_consume(compiler, token_close_paren, "expected `)`");
+    }
+}
+
+static void nud_string(Compiler* compiler) {
+    compiler_string_constant(compiler, &compiler->previous_token);
 }
 
 static void nud_string_prefix(Compiler* compiler) {
