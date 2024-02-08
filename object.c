@@ -1,3 +1,4 @@
+#include <math.h>
 #include <string.h>
 
 #include "object.h"
@@ -29,6 +30,23 @@ String* string_concatenate(String* x, String* y) {
 #endif
     memcpy(string->chars, x->chars, x->length);
     memcpy(string->chars + x->length, y->chars, y->length);
+    string->chars[string->length] = 0;
+    return string;
+}
+
+String* string_exponent(String* x, double n) {
+    size_t m = (size_t)round(n > 0 ? n : 0);
+    String* string = malloc(sizeof(String));
+    string->length = x->length * m;
+    string->chars = malloc(string->length + 1);
+#ifdef DEBUG
+    fprintf(stderr, "+++ string_exponent() new string \"%s\" (%p, %zu chars).\n",
+        string->chars, (void*)string->chars, string->length);
+#endif
+    for (size_t i = 0; i < m; ++i) {
+        memcpy(string->chars + i * x->length, x->chars, x->length);
+    }
+    string->chars[string->length] = 0;
     return string;
 }
 

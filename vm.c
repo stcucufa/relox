@@ -211,14 +211,18 @@ Result vm_run(VM* vm, const char* source) {
             }
             case op_divide: BINARY_OP_NUMBER(/); break;
             case op_exponent: {
-                if (!VALUE_IS_NUMBER(PEEK(1))) {
-                    return runtime_error(vm, "First operand of arithmetic operation is not a number."); \
-                }
                 if (!VALUE_IS_NUMBER(PEEK(0))) {
-                    return runtime_error(vm, "Second operand of arithmetic operation is not a number."); \
+                    return runtime_error(vm, "Exponent is not a number.");
                 }
-                double v = POP().as_double;
-                POKE(0, VALUE_FROM_NUMBER(pow(PEEK(0).as_double, v)));
+                double exponent = POP().as_double;
+                Value base = PEEK(0);
+                if (VALUE_IS_NUMBER(base)) {
+                    POKE(0, VALUE_FROM_NUMBER(pow(base.as_double, exponent)));
+                } else if (VALUE_IS_STRING(base)) {
+                    POKE(0, VALUE_FROM_STRING(string_exponent(VALUE_TO_STRING(base), exponent)));
+                } else {
+                    return runtime_error(vm, "Base of exponent is not a number or a string.");
+                }
                 break;
             }
             case op_false: PUSH(VALUE_FALSE); break;
