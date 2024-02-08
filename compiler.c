@@ -10,6 +10,7 @@ struct Compiler;
 typedef enum {
     precedence_eof,
     precedence_none,
+    precedence_interpolation,
     precedence_equality,
     precedence_inequality,
     precedence_addition,
@@ -92,27 +93,25 @@ static void nud_group(Compiler* compiler) {
     }
 }
 
-static void compiler_string_constant(Compiler* compiler, Token* token, size_t offset, size_t crop) {
-    Value string = VALUE_FROM_STRING(string_copy(token->start + offset, token->length - crop));
+static void compiler_string_constant(Compiler* compiler, Token* token, size_t crop) {
+    Value string = VALUE_FROM_STRING(string_copy(token->start + 1, token->length - crop));
     vm_add_object(compiler->chunk->vm, string);
     compiler_emit_constant(compiler, string);
 }
 
 static void nud_string(Compiler* compiler) {
-    compiler_string_constant(compiler, &compiler->previous_token, 1, 2);
+    compiler_string_constant(compiler, &compiler->previous_token, 2);
 }
 
-static void nud_string_interpolation(Compiler* compiler) {
-    compiler_string_constant(compiler, &compiler->previous_token, 1, 3);
+static void nud_string_prefix(Compiler* compiler) {
+    compiler_string_constant(compiler, &compiler->previous_token, 3);
     if (compiler_parse(compiler, precedence_none)) {
-        if (compiler->current_token.type == token_string_suffix) {
+        if (compiler->current_token.type == token_string_infix ||
+            compiler->current_token.type == token_string_suffix) {
             compiler_emit_byte(compiler, op_stringify);
             compiler_emit_byte(compiler, op_multiply);
-            compiler_string_constant(compiler, &compiler->current_token, 1, 2);
-            compiler_emit_byte(compiler, op_multiply);
-            compiler_advance(compiler);
         } else {
-            compiler_error(compiler, &compiler->current_token, "expected end of string");
+            compiler_error(compiler, &compiler->current_token, "expected a continuing string");
         }
     }
 }
@@ -150,6 +149,11 @@ static void nud_unary_op(Compiler* compiler) {
     if (compiler_parse(compiler, precedence_unary)) {
         compiler_emit_byte(compiler, op);
     }
+}
+
+static void led_string_suffix(Compiler* compiler) {
+    compiler_string_constant(compiler, &compiler->previous_token, 2);
+    compiler_emit_byte(compiler, op_multiply);
 }
 
 static void led_binary_op(Compiler* compiler) {
@@ -200,7 +204,9 @@ Rule rules[] = {
     [token_equal_equal] = { 0, led_binary_op, precedence_equality },
     [token_ge] = { 0, led_binary_op, precedence_inequality },
     [token_string] = { nud_string, 0, precedence_none },
-    [token_string_prefix] = { nud_string_interpolation, 0, precedence_none },
+    [token_string_prefix] = { nud_string_prefix, 0, precedence_none },
+    [token_string_infix] = { nud_string_prefix, led_string_suffix, precedence_interpolation },
+    [token_string_suffix] = { 0, led_string_suffix, precedence_interpolation },
     [token_star_star] = { 0, led_right_op, precedence_exponentiation },
     [token_number] = { nud_number, 0, precedence_none },
     [token_false] = { nud_false, 0, precedence_none },
