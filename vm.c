@@ -60,7 +60,7 @@ char const*const opcodes[opcode_count] = {
     [op_ge] = "ge",
     [op_lt] = "lt",
     [op_le] = "le",
-    [op_stringify] = "stringify",
+    [op_quote] = "quote",
     [op_return] = "return",
     [op_nop] = "nop",
 };
@@ -92,7 +92,7 @@ void chunk_debug(Chunk* chunk, const char* name) {
             case op_ge:
             case op_lt:
             case op_le:
-            case op_stringify:
+            case op_quote:
             case op_return:
             case op_nop:
                 fprintf(stderr, "    %s\n", opcodes[opcode]);
@@ -246,7 +246,7 @@ Result vm_run(VM* vm, const char* source) {
             case op_ge: BINARY_OP_BOOLEAN(>=); break;
             case op_lt: BINARY_OP_BOOLEAN(<); break;
             case op_le: BINARY_OP_BOOLEAN(<=); break;
-            case op_stringify: POKE(0, value_stringify(PEEK(0))); break;
+            case op_quote: POKE(0, value_stringify(PEEK(0))); break;
             case op_nop: break;
         }
 #ifdef DEBUG
@@ -258,6 +258,12 @@ Result vm_run(VM* vm, const char* source) {
         fprintf(stderr, " }\n");
 #endif
     } while (opcode != op_return);
+
+#ifdef DEBUG
+    fprintf(stderr, "^^^ ");
+    value_print(stderr, *vm->stack);
+    fputs("\n", stderr);
+#endif
 
     chunk_free(&chunk);
     return result_ok;

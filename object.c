@@ -11,7 +11,7 @@ static String* string_new(size_t length) {
     String* string = malloc(sizeof(String) + length + 1);
     string->length = length;
 #ifdef DEBUG
-    fprintf(stderr, "+++ string_new() (%p, %zu chars).", (void*)string->chars, string->length);
+    fprintf(stderr, "+++ string_new() (%p, length: %zu).", (void*)string->chars, string->length);
 #endif
     return string;
 }

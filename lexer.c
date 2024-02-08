@@ -9,6 +9,7 @@
 char const*const tokens[token_count] = {
     [token_begin] = "begin",
     [token_bang] = "bang",
+    [token_quote] = "quote",
     [token_open_paren] = "open paren",
     [token_close_paren] = "close paren",
     [token_star] = "star",
@@ -192,6 +193,7 @@ Token lexer_advance(Lexer* lexer) {
     switch (c) {
         case '!': return TOKEN(MATCH('=') ? token_bang_equal : token_bang);
         case '"': return lexer_string(lexer, c);
+        case '\'': return TOKEN(token_quote);
         case '(': return TOKEN(token_open_paren);
         case ')': return TOKEN(token_close_paren);
         case '*': return TOKEN(MATCH('*') ? token_star_star : token_star);

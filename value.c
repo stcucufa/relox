@@ -18,7 +18,7 @@ void value_print(FILE* stream, Value v) {
     }
 
 #ifdef DEBUG
-    fprintf(stream, "=0x%" PRIx64, v.as_int);
+    fprintf(stream, " <0x%" PRIx64 ">", v.as_int);
 #endif
 }
 
@@ -51,6 +51,9 @@ bool value_equal(Value x, Value y) {
 
 void value_free_object(Value v) {
     if (VALUE_IS_STRING(v)) {
+#ifdef DEBUG
+        fprintf(stderr, "--- value_free_object() string \"%s\"\n", VALUE_TO_CSTRING(v));
+#endif
         free(VALUE_TO_STRING(v));
     }
 }
