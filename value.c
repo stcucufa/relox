@@ -51,6 +51,6 @@ bool value_equal(Value x, Value y) {
 
 void value_free_object(Value v) {
     if (VALUE_IS_STRING(v)) {
-        string_free(VALUE_TO_STRING(v));
+        free(VALUE_TO_STRING(v));
     }
 }

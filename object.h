@@ -5,7 +5,7 @@
 
 typedef struct {
     size_t length;
-    char* chars;
+    char chars[];
 } String;
 
 String* string_copy(const char*, size_t);

@@ -95,6 +95,9 @@ static void nud_group(Compiler* compiler) {
 
 static void compiler_string_constant(Compiler* compiler, Token* token, size_t crop) {
     Value string = VALUE_FROM_STRING(string_copy(token->start + 1, token->length - crop));
+#ifdef DEBUG
+    fputs("", stderr);
+#endif
     vm_add_object(compiler->chunk->vm, string);
     compiler_emit_constant(compiler, string);
 }
