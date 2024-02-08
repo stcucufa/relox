@@ -108,7 +108,7 @@ static void nud_string(Compiler* compiler) {
 
 static void nud_string_prefix(Compiler* compiler) {
     compiler_string_constant(compiler, &compiler->previous_token, 3);
-    if (compiler_parse(compiler, precedence_none)) {
+    if (compiler_parse(compiler, precedence_interpolation)) {
         if (compiler->current_token.type == token_string_infix ||
             compiler->current_token.type == token_string_suffix) {
             compiler_emit_byte(compiler, op_stringify);
@@ -117,6 +117,11 @@ static void nud_string_prefix(Compiler* compiler) {
             compiler_error(compiler, &compiler->current_token, "expected a continuing string");
         }
     }
+}
+
+static void led_string_suffix(Compiler* compiler) {
+    compiler_string_constant(compiler, &compiler->previous_token, 2);
+    compiler_emit_byte(compiler, op_multiply);
 }
 
 static void nud_number(Compiler* compiler) {
@@ -152,11 +157,6 @@ static void nud_unary_op(Compiler* compiler) {
     if (compiler_parse(compiler, precedence_unary)) {
         compiler_emit_byte(compiler, op);
     }
-}
-
-static void led_string_suffix(Compiler* compiler) {
-    compiler_string_constant(compiler, &compiler->previous_token, 2);
-    compiler_emit_byte(compiler, op_multiply);
 }
 
 static void led_binary_op(Compiler* compiler) {
