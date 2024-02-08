@@ -10,6 +10,7 @@ struct Compiler;
 typedef enum {
     precedence_eof,
     precedence_none,
+    precedence_interpolation,
     precedence_equality,
     precedence_inequality,
     precedence_addition,
@@ -86,6 +87,29 @@ static void compiler_emit_constant(Compiler* compiler, Value value) {
     compiler_emit_byte(compiler, (uint8_t)chunk_add_constant(compiler->chunk, value));
 }
 
+static void compiler_string_constant(Compiler* compiler, Token* token) {
+    Value string = VALUE_FROM_STRING(string_copy(token->start + 1, token->length - (
+        token->type == token_string_prefix || token->type == token_string_infix ? 3 : 2
+    )));
+#ifdef DEBUG
+    fputs("\n", stderr);
+#endif
+    vm_add_object(compiler->chunk->vm, string);
+    compiler_emit_constant(compiler, string);
+}
+
+static void compiler_string_interpolation(Compiler* compiler) {
+    if (compiler_parse(compiler, precedence_interpolation)) {
+        if (compiler->current_token.type == token_string_infix ||
+            compiler->current_token.type == token_string_suffix) {
+            compiler_emit_byte(compiler, op_quote);
+            compiler_emit_byte(compiler, op_multiply);
+        } else {
+            compiler_error(compiler, &compiler->current_token, "expected a continuing string");
+        }
+    }
+}
+
 static void nud_group(Compiler* compiler) {
     if (compiler_parse(compiler, precedence_none)) {
         compiler_consume(compiler, token_close_paren, "expected `)`");
@@ -93,10 +117,20 @@ static void nud_group(Compiler* compiler) {
 }
 
 static void nud_string(Compiler* compiler) {
-    Token token = compiler->previous_token;
-    Value string = VALUE_FROM_STRING(string_copy(token.start + 1, token.length - 2));
-    vm_add_object(compiler->chunk->vm, string);
-    compiler_emit_constant(compiler, string);
+    compiler_string_constant(compiler, &compiler->previous_token);
+}
+
+static void nud_string_prefix(Compiler* compiler) {
+    compiler_string_constant(compiler, &compiler->previous_token);
+    compiler_string_interpolation(compiler);
+}
+
+static void led_string_suffix(Compiler* compiler) {
+    compiler_string_constant(compiler, &compiler->previous_token);
+    compiler_emit_byte(compiler, op_multiply);
+    if (compiler->previous_token.type == token_string_infix) {
+        compiler_string_interpolation(compiler);
+    }
 }
 
 static void nud_number(Compiler* compiler) {
@@ -126,6 +160,7 @@ static void nud_unary_op(Compiler* compiler) {
     uint8_t op = op_nop;
     switch (compiler->previous_token.type) {
         case token_bang: op = op_not; break;
+        case token_quote: op = op_quote; break;
         case token_minus: op = op_negate; break;
         default: break;
     }
@@ -169,6 +204,7 @@ static void led_right_op(Compiler* compiler) {
 
 Rule rules[] = {
     [token_bang] = { nud_unary_op, 0, precedence_none },
+    [token_quote] = { nud_unary_op, 0, precedence_none },
     [token_open_paren] = { nud_group, 0, precedence_none },
     [token_close_paren] = { 0, 0, precedence_none },
     [token_star] = { 0, led_binary_op, precedence_multiplication },
@@ -182,6 +218,9 @@ Rule rules[] = {
     [token_equal_equal] = { 0, led_binary_op, precedence_equality },
     [token_ge] = { 0, led_binary_op, precedence_inequality },
     [token_string] = { nud_string, 0, precedence_none },
+    [token_string_prefix] = { nud_string_prefix, 0, precedence_none },
+    [token_string_infix] = { 0, led_string_suffix, precedence_interpolation },
+    [token_string_suffix] = { 0, led_string_suffix, precedence_interpolation },
     [token_star_star] = { 0, led_right_op, precedence_exponentiation },
     [token_number] = { nud_number, 0, precedence_none },
     [token_false] = { nud_false, 0, precedence_none },
@@ -193,6 +232,11 @@ Rule rules[] = {
 static void compiler_advance(Compiler* compiler) {
     compiler->previous_token = compiler->current_token;
     compiler->current_token = lexer_advance(compiler->lexer);
+
+#ifdef DEBUG
+    fprintf(stderr, ">>> [%zu] Current token: ", compiler->lexer->string_nesting);
+    token_debug(&compiler->current_token);
+#endif
 }
 
 bool compile_chunk(const char* source, Chunk* chunk) {

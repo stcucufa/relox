@@ -18,8 +18,26 @@ void value_print(FILE* stream, Value v) {
     }
 
 #ifdef DEBUG
-    fprintf(stream, "=0x%" PRIx64, v.as_int);
+    fprintf(stream, " <0x%" PRIx64 ">", v.as_int);
 #endif
+}
+
+char const*const strings[tag_count] = {
+    [tag_nan] = "nan",
+    [tag_nil] = "nil",
+    [tag_false] = "false",
+    [tag_true] = "true",
+};
+
+Value value_stringify(Value v) {
+    if (VALUE_IS_NUMBER(v)) {
+        return VALUE_FROM_STRING(string_from_number(v.as_double));
+    }
+    size_t tag = VALUE_TAG(v);
+    if (tag == tag_string) {
+        return v;
+    }
+    return VALUE_FROM_STRING(string_copy(strings[tag], strlen(strings[tag])));
 }
 
 bool value_equal(Value x, Value y) {
@@ -33,6 +51,9 @@ bool value_equal(Value x, Value y) {
 
 void value_free_object(Value v) {
     if (VALUE_IS_STRING(v)) {
-        string_free(VALUE_TO_STRING(v));
+#ifdef DEBUG
+        fprintf(stderr, "--- value_free_object() string \"%s\"\n", VALUE_TO_CSTRING(v));
+#endif
+        free(VALUE_TO_STRING(v));
     }
 }

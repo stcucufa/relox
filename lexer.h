@@ -6,6 +6,7 @@
 typedef enum {
     token_begin,
     token_bang,
+    token_quote,
     token_open_paren,
     token_close_paren,
     token_star,

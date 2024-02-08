@@ -9,6 +9,7 @@
 char const*const tokens[token_count] = {
     [token_begin] = "begin",
     [token_bang] = "bang",
+    [token_quote] = "quote",
     [token_open_paren] = "open paren",
     [token_close_paren] = "close paren",
     [token_star] = "star",
@@ -116,7 +117,7 @@ Token lexer_string(Lexer* lexer, char open) {
         switch (*lexer->current++) {
             case 0: return lexer_error(lexer, "unterminated string literal.");
             case '"':
-                if (lexer->string_nesting == 0) {
+                if (open == '"') {
                     return lexer_token(lexer, token_string);
                 }
                 lexer->string_nesting -= 1;
@@ -124,6 +125,7 @@ Token lexer_string(Lexer* lexer, char open) {
             case '$':
                 if (*lexer->current == '{') {
                     lexer->current += 1;
+                    lexer->string_nesting += 1;
                     return lexer_token(
                         lexer,
                         open == '"' ? token_string_prefix : token_string_infix
@@ -191,6 +193,7 @@ Token lexer_advance(Lexer* lexer) {
     switch (c) {
         case '!': return TOKEN(MATCH('=') ? token_bang_equal : token_bang);
         case '"': return lexer_string(lexer, c);
+        case '\'': return TOKEN(token_quote);
         case '(': return TOKEN(token_open_paren);
         case ')': return TOKEN(token_close_paren);
         case '*': return TOKEN(MATCH('*') ? token_star_star : token_star);
