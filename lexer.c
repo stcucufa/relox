@@ -124,6 +124,7 @@ Token lexer_string(Lexer* lexer, char open) {
             case '$':
                 if (*lexer->current == '{') {
                     lexer->current += 1;
+                    lexer->string_nesting += 1;
                     return lexer_token(
                         lexer,
                         open == '"' ? token_string_prefix : token_string_infix

@@ -21,6 +21,7 @@ enum {
     tag_false = 2,
     tag_true = 3,
     tag_string = 4,
+    tag_count = 5,
     tag_mask = 7,
 };
 
@@ -44,6 +45,7 @@ enum {
 
 void value_print(FILE*, Value);
 bool value_equal(Value, Value);
+Value value_stringify(Value);
 void value_free_object(Value);
 
 #endif

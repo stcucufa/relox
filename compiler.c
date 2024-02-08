@@ -92,11 +92,29 @@ static void nud_group(Compiler* compiler) {
     }
 }
 
-static void nud_string(Compiler* compiler) {
-    Token token = compiler->previous_token;
-    Value string = VALUE_FROM_STRING(string_copy(token.start + 1, token.length - 2));
+static void compiler_string_constant(Compiler* compiler, Token* token, size_t offset, size_t crop) {
+    Value string = VALUE_FROM_STRING(string_copy(token->start + offset, token->length - crop));
     vm_add_object(compiler->chunk->vm, string);
     compiler_emit_constant(compiler, string);
+}
+
+static void nud_string(Compiler* compiler) {
+    compiler_string_constant(compiler, &compiler->previous_token, 1, 2);
+}
+
+static void nud_string_interpolation(Compiler* compiler) {
+    compiler_string_constant(compiler, &compiler->previous_token, 1, 3);
+    if (compiler_parse(compiler, precedence_none)) {
+        if (compiler->current_token.type == token_string_suffix) {
+            compiler_emit_byte(compiler, op_stringify);
+            compiler_emit_byte(compiler, op_multiply);
+            compiler_string_constant(compiler, &compiler->current_token, 1, 2);
+            compiler_emit_byte(compiler, op_multiply);
+            compiler_advance(compiler);
+        } else {
+            compiler_error(compiler, &compiler->current_token, "expected end of string");
+        }
+    }
 }
 
 static void nud_number(Compiler* compiler) {
@@ -182,6 +200,7 @@ Rule rules[] = {
     [token_equal_equal] = { 0, led_binary_op, precedence_equality },
     [token_ge] = { 0, led_binary_op, precedence_inequality },
     [token_string] = { nud_string, 0, precedence_none },
+    [token_string_prefix] = { nud_string_interpolation, 0, precedence_none },
     [token_star_star] = { 0, led_right_op, precedence_exponentiation },
     [token_number] = { nud_number, 0, precedence_none },
     [token_false] = { nud_false, 0, precedence_none },
@@ -193,6 +212,12 @@ Rule rules[] = {
 static void compiler_advance(Compiler* compiler) {
     compiler->previous_token = compiler->current_token;
     compiler->current_token = lexer_advance(compiler->lexer);
+
+#ifdef DEBUG
+    fprintf(stderr, ">>> [%zu] Current token: ", compiler->lexer->string_nesting);
+    token_debug(&compiler->current_token);
+    fputs("", stderr);
+#endif
 }
 
 bool compile_chunk(const char* source, Chunk* chunk) {

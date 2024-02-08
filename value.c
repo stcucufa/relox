@@ -22,6 +22,24 @@ void value_print(FILE* stream, Value v) {
 #endif
 }
 
+char const*const strings[tag_count] = {
+    [tag_nan] = "nan",
+    [tag_nil] = "nil",
+    [tag_false] = "false",
+    [tag_true] = "true",
+};
+
+Value value_stringify(Value v) {
+    if (VALUE_IS_NUMBER(v)) {
+        return VALUE_FROM_STRING(string_from_number(v.as_double));
+    }
+    size_t tag = VALUE_TAG(v);
+    if (tag == tag_string) {
+        return v;
+    }
+    return VALUE_FROM_STRING(string_copy(strings[tag], strlen(strings[tag])));
+}
+
 bool value_equal(Value x, Value y) {
     if (VALUE_IS_STRING(x) && VALUE_IS_STRING(y)) {
         String *s = VALUE_TO_STRING(x);

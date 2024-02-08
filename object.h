@@ -11,6 +11,7 @@ typedef struct {
 String* string_copy(const char*, size_t);
 String* string_concatenate(String*, String*);
 String* string_exponent(String*, double);
+String* string_from_number(double);
 void string_free(String*);
 
 #endif

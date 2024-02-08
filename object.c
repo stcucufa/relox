@@ -50,6 +50,18 @@ String* string_exponent(String* x, double n) {
     return string;
 }
 
+String* string_from_number(double n) {
+    String* string = malloc(sizeof(String));
+    string->length = (size_t)snprintf(NULL, 0, "%g", n);
+    string->chars = malloc(string->length + 1);
+#ifdef DEBUG
+    fprintf(stderr, "+++ string_exponent() new string \"%s\" (%p, %zu chars).\n",
+        string->chars, (void*)string->chars, string->length);
+#endif
+    snprintf(string->chars, string->length + 1, "%g", n);
+    return string;
+}
+
 void string_free(String* string) {
 #ifdef DEBUG
     fprintf(stderr, "--- string_free() \"%s\" (%p, %zu chars).\n",
