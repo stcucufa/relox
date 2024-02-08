@@ -94,9 +94,12 @@ static void nud_group(Compiler* compiler) {
 }
 
 static void compiler_string_constant(Compiler* compiler, Token* token) {
-    Value string = VALUE_FROM_STRING(string_copy(
-        token->start + 1, token->length - (token->type == token_string_prefix ? 3 : 2)
-    ));
+    Value string = VALUE_FROM_STRING(string_copy(token->start + 1, token->length - (
+        token->type == token_string_prefix || token->type == token_string_infix ? 3 : 2
+    )));
+#ifdef DEBUG
+    fputs("\n", stderr);
+#endif
     vm_add_object(compiler->chunk->vm, string);
     compiler_emit_constant(compiler, string);
 }
@@ -105,8 +108,7 @@ static void nud_string(Compiler* compiler) {
     compiler_string_constant(compiler, &compiler->previous_token);
 }
 
-static void nud_string_prefix(Compiler* compiler) {
-    compiler_string_constant(compiler, &compiler->previous_token);
+static void compiler_string_interpolation(Compiler* compiler) {
     if (compiler_parse(compiler, precedence_interpolation)) {
         if (compiler->current_token.type == token_string_infix ||
             compiler->current_token.type == token_string_suffix) {
@@ -118,11 +120,16 @@ static void nud_string_prefix(Compiler* compiler) {
     }
 }
 
+static void nud_string_prefix(Compiler* compiler) {
+    compiler_string_constant(compiler, &compiler->previous_token);
+    compiler_string_interpolation(compiler);
+}
+
 static void led_string_suffix(Compiler* compiler) {
     compiler_string_constant(compiler, &compiler->previous_token);
     compiler_emit_byte(compiler, op_multiply);
     if (compiler->previous_token.type == token_string_infix) {
-        nud_string_prefix(compiler);
+        compiler_string_interpolation(compiler);
     }
 }
 
