@@ -94,8 +94,7 @@ static void compiler_string_constant(Compiler* compiler, Token* token) {
 #ifdef DEBUG
     fputs("\n", stderr);
 #endif
-    vm_add_object(compiler->chunk->vm, string);
-    compiler_emit_constant(compiler, string);
+    compiler_emit_constant(compiler, vm_add_object(compiler->chunk->vm, string));
 }
 
 static void compiler_string_interpolation(Compiler* compiler) {

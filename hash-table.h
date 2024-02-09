@@ -20,6 +20,7 @@ typedef struct {
 void hash_table_init(HashTable*);
 bool hash_table_set(HashTable*, String*, Value);
 bool hash_table_get(HashTable*, String*, Value*);
+String* hash_table_find_string(HashTable*, String*);
 bool hash_table_delete(HashTable*, String*);
 void hash_table_free(HashTable*);
 

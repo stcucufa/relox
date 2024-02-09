@@ -10,17 +10,16 @@ void hash_table_init(HashTable* table) {
 }
 
 static Entry* hash_table_find_entry(Entry* entries, size_t capacity, String* key) {
-    if (capacity == 0) {
-        return 0;
-    }
-
     Entry* tombstone = 0;
     size_t index = (size_t)key->hash % capacity;
     for (;;) {
         Entry* entry = &entries[index];
         if (!entry->key) {
             if (VALUE_IS_NIL(entry->value)) {
-                return tombstone ? tombstone : entry;
+                if (tombstone) {
+                    return tombstone;
+                }
+                return entry;
             } else {
                 if (!tombstone) {
                     tombstone = entry;
@@ -80,6 +79,10 @@ bool hash_table_set(HashTable* table, String* key, Value value) {
 }
 
 bool hash_table_get(HashTable* table, String* key, Value* value) {
+    if (table->count == 0) {
+        return false;
+    }
+
     Entry* entry = hash_table_find_entry(table->entries, table->capacity, key);
     if (!entry->key) {
         return false;
@@ -88,7 +91,30 @@ bool hash_table_get(HashTable* table, String* key, Value* value) {
     return true;
 }
 
+String* hash_table_find_string(HashTable* table, String* key) {
+    if (table->count == 0) {
+        return 0;
+    }
+
+    size_t index = (size_t)key->hash % table->capacity;
+    for (;;) {
+        Entry* entry = &table->entries[index];
+        if (!entry->key) {
+            if (VALUE_IS_NIL(entry->value)) {
+                return 0;
+            }
+        } else if (string_equal(entry->key, key)) {
+            return entry->key;
+        }
+        index = (index + 1) % table->capacity;
+    }
+}
+
 bool hash_table_delete(HashTable* table, String* key) {
+    if (table->count == 0) {
+        return false;
+    }
+
     Entry* entry = hash_table_find_entry(table->entries, table->capacity, key);
     if (!entry->key) {
         return false;

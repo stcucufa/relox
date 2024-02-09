@@ -59,3 +59,7 @@ String* string_from_number(double n) {
     string->hash = string_hash(string);
     return string;
 }
+
+bool string_equal(String* s, String* t) {
+    return s->length == t->length && s->hash == t->hash && memcmp(s->chars, t->chars, s->length) == 0;
+}

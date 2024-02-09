@@ -42,9 +42,7 @@ Value value_stringify(Value v) {
 
 bool value_equal(Value x, Value y) {
     if (VALUE_IS_STRING(x) && VALUE_IS_STRING(y)) {
-        String *s = VALUE_TO_STRING(x);
-        String *t = VALUE_TO_STRING(y);
-        return s->length == t->length && memcmp(s->chars, t->chars, s->length) == 0;
+        return string_equal(VALUE_TO_STRING(x), VALUE_TO_STRING(y));
     }
     return x.as_double == y.as_double;
 }
