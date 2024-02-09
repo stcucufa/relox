@@ -34,6 +34,7 @@ enum {
 #define VALUE_TRUE (Value){ .as_int = QNAN | tag_true }
 #define VALUE_FROM_STRING(x) (Value){ .as_int = (uintptr_t)(x) | QNAN | tag_string }
 #define VALUE_FROM_NUMBER(x) (Value){ .as_double = (x) }
+#define VALUE_FROM_INT(x) (Value){ .as_double = (double)(x) }
 
 #define VALUE_TAG(v) ((v).as_int & tag_mask)
 
@@ -47,6 +48,7 @@ enum {
 
 #define VALUE_TO_STRING(v) ((String*)((v).as_int & OBJECT_MASK))
 #define VALUE_TO_CSTRING(v) (VALUE_TO_STRING(v)->chars)
+#define VALUE_TO_INT(v) ((int64_t)(v).as_double)
 
 void value_print(FILE*, Value);
 bool value_equal(Value, Value);

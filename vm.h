@@ -42,6 +42,7 @@ typedef struct {
     ByteArray bytes;
     NumberArray line_numbers;
     ValueArray values;
+    HashTable constants;
 } Chunk;
 
 void chunk_init(Chunk*);
