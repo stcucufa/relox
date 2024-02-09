@@ -11,24 +11,34 @@ void hash_table_init(HashTable* table) {
 
 static Entry* hash_table_find_entry(Entry* entries, size_t capacity, Value key) {
     Entry* tombstone = 0;
-    size_t index = (size_t)value_hash(key) % capacity;
-    for (;;) {
+    for (size_t index = (size_t)value_hash(key) % capacity;; index = (index + 1) % capacity) {
         Entry* entry = &entries[index];
         if (VALUE_IS_NONE(entry->key)) {
             if (VALUE_IS_NONE(entry->value)) {
-                if (tombstone) {
-                    return tombstone;
-                }
-                return entry;
-            } else {
-                if (!tombstone) {
-                    tombstone = entry;
-                }
+                return tombstone ? tombstone : entry;
+            } else if (!tombstone) {
+                tombstone = entry;
             }
         } else if (VALUE_EQUAL(entry->key, key)) {
             return entry;
         }
-        index = (index + 1) % capacity;
+    }
+}
+
+Value hash_table_find_string(HashTable* table, String* key) {
+    if (table->count == 0) {
+        return VALUE_NONE;
+    }
+
+    for (size_t index = (size_t)key->hash % table->capacity;; index = (index + 1) % table->capacity) {
+        Entry* entry = &table->entries[index];
+        if (VALUE_IS_NONE(entry->key)) {
+            if (VALUE_IS_NONE(entry->value)) {
+                return VALUE_NONE;
+            }
+        } else if (string_equal(VALUE_TO_STRING(entry->key), key)) {
+            return entry->key;
+        }
     }
 }
 
@@ -89,25 +99,6 @@ bool hash_table_get(HashTable* table, Value key, Value* value) {
     }
     *value = entry->value;
     return true;
-}
-
-Value hash_table_find_string(HashTable* table, String* key) {
-    if (table->count == 0) {
-        return VALUE_NONE;
-    }
-
-    size_t index = (size_t)key->hash % table->capacity;
-    for (;;) {
-        Entry* entry = &table->entries[index];
-        if (VALUE_IS_NONE(entry->key)) {
-            if (VALUE_IS_NONE(entry->value)) {
-                return VALUE_NONE;
-            }
-        } else if (string_equal(VALUE_TO_STRING(entry->key), key)) {
-            return entry->key;
-        }
-        index = (index + 1) % table->capacity;
-    }
 }
 
 bool hash_table_delete(HashTable* table, Value key) {
