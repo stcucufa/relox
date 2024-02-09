@@ -42,11 +42,13 @@ Value value_stringify(Value v) {
 
 bool value_equal(Value x, Value y) {
     if (VALUE_IS_STRING(x) && VALUE_IS_STRING(y)) {
-        String *s = VALUE_TO_STRING(x);
-        String *t = VALUE_TO_STRING(y);
-        return s->length == t->length && memcmp(s->chars, t->chars, s->length) == 0;
+        return string_equal(VALUE_TO_STRING(x), VALUE_TO_STRING(y));
     }
     return x.as_double == y.as_double;
+}
+
+uint32_t value_hash(Value v) {
+    return VALUE_IS_STRING(v) ? VALUE_TO_STRING(v)->hash : bytes_hash(v.as_bytes, 8);
 }
 
 void value_free_object(Value v) {

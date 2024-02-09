@@ -5,6 +5,7 @@
 #include <stddef.h>
 
 #include "array.h"
+#include "hash-table.h"
 #include "object.h"
 #include "value.h"
 
@@ -45,7 +46,7 @@ typedef struct {
 
 void chunk_init(Chunk*);
 void chunk_add_byte(Chunk*, uint8_t, size_t);
-size_t chunk_add_constant(Chunk*, Value);
+size_t chunk_add_constant(Chunk*, HashTable*, Value);
 void chunk_free(Chunk*);
 
 #ifdef DEBUG
@@ -59,6 +60,7 @@ typedef struct VM {
     Value stack[STACK_SIZE];
     Value* sp;
     uint8_t* ip;
+    HashTable strings;
     ValueArray objects;
 } VM;
 
@@ -68,8 +70,8 @@ typedef enum {
     result_runtime_error,
 } Result;
 
-void vm_add_object(VM*, Value);
 Result vm_run(VM*, const char*);
+Value vm_add_object(VM*, Value);
 void vm_free(VM*);
 
 #endif

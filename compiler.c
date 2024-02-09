@@ -31,6 +31,7 @@ Rule rules[];
 
 typedef struct Compiler {
     Chunk* chunk;
+    HashTable constants;
     Lexer* lexer;
     Token previous_token;
     Token current_token;
@@ -70,7 +71,7 @@ static bool compiler_parse(Compiler* compiler, Precedence precedence) {
     return !compiler->error;
 }
 
-static void compiler_consume(Compiler* compiler, Token_Type type, const char* message) {
+static void compiler_consume(Compiler* compiler, TokenType type, const char* message) {
     if (compiler->current_token.type == type) {
         compiler_advance(compiler);
     } else {
@@ -84,7 +85,7 @@ static void compiler_emit_byte(Compiler* compiler, uint8_t byte) {
 
 static void compiler_emit_constant(Compiler* compiler, Value value) {
     compiler_emit_byte(compiler, op_constant);
-    compiler_emit_byte(compiler, (uint8_t)chunk_add_constant(compiler->chunk, value));
+    compiler_emit_byte(compiler, (uint8_t)chunk_add_constant(compiler->chunk, &compiler->constants, value));
 }
 
 static void compiler_string_constant(Compiler* compiler, Token* token) {
@@ -94,8 +95,7 @@ static void compiler_string_constant(Compiler* compiler, Token* token) {
 #ifdef DEBUG
     fputs("\n", stderr);
 #endif
-    vm_add_object(compiler->chunk->vm, string);
-    compiler_emit_constant(compiler, string);
+    compiler_emit_constant(compiler, vm_add_object(compiler->chunk->vm, string));
 }
 
 static void compiler_string_interpolation(Compiler* compiler) {
@@ -170,7 +170,7 @@ static void nud_unary_op(Compiler* compiler) {
 }
 
 static void led_binary_op(Compiler* compiler) {
-    Token_Type t = compiler->previous_token.type;
+    TokenType t = compiler->previous_token.type;
     uint8_t op = op_nop;
     switch (t) {
         case token_star: op = op_multiply; break;
@@ -191,7 +191,7 @@ static void led_binary_op(Compiler* compiler) {
 }
 
 static void led_right_op(Compiler* compiler) {
-    Token_Type t = compiler->previous_token.type;
+    TokenType t = compiler->previous_token.type;
     uint8_t op = op_nop;
     switch (t) {
         case token_star_star: op = op_exponent; break;
@@ -244,6 +244,7 @@ bool compile_chunk(const char* source, Chunk* chunk) {
     Lexer lexer;
     lexer_init(&lexer, source);
     compiler.chunk = chunk;
+    hash_table_init(&compiler.constants);
     compiler.lexer = &lexer;
     compiler.error = false;
     compiler_advance(&compiler);
@@ -253,5 +254,6 @@ bool compile_chunk(const char* source, Chunk* chunk) {
             compiler_emit_byte(&compiler, op_return);
         }
     }
+    hash_table_free(&compiler.constants);
     return !compiler.error;
 }

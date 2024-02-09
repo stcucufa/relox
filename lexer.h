@@ -51,10 +51,10 @@ typedef enum {
     token_error,
     token_eof,
     token_count,
-} Token_Type;
+} TokenType;
 
 typedef struct {
-    Token_Type type;
+    TokenType type;
     const char* start;
     size_t length;
     size_t line;
@@ -69,7 +69,7 @@ typedef struct {
     const char* current;
     size_t line;
     size_t string_nesting;
-    Token_Type last;
+    TokenType last;
 } Lexer;
 
 void lexer_init(Lexer*, const char*);
