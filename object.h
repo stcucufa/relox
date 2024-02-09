@@ -5,6 +5,7 @@
 
 typedef struct {
     size_t length;
+    uint32_t hash;
     char chars[];
 } String;
 

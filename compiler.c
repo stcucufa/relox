@@ -70,7 +70,7 @@ static bool compiler_parse(Compiler* compiler, Precedence precedence) {
     return !compiler->error;
 }
 
-static void compiler_consume(Compiler* compiler, Token_Type type, const char* message) {
+static void compiler_consume(Compiler* compiler, TokenType type, const char* message) {
     if (compiler->current_token.type == type) {
         compiler_advance(compiler);
     } else {
@@ -170,7 +170,7 @@ static void nud_unary_op(Compiler* compiler) {
 }
 
 static void led_binary_op(Compiler* compiler) {
-    Token_Type t = compiler->previous_token.type;
+    TokenType t = compiler->previous_token.type;
     uint8_t op = op_nop;
     switch (t) {
         case token_star: op = op_multiply; break;
@@ -191,7 +191,7 @@ static void led_binary_op(Compiler* compiler) {
 }
 
 static void led_right_op(Compiler* compiler) {
-    Token_Type t = compiler->previous_token.type;
+    TokenType t = compiler->previous_token.type;
     uint8_t op = op_nop;
     switch (t) {
         case token_star_star: op = op_exponent; break;

@@ -62,7 +62,7 @@ void token_debug(Token* token) {
 
 #endif
 
-static Token lexer_token(Lexer* lexer, Token_Type type) {
+static Token lexer_token(Lexer* lexer, TokenType type) {
     Token token;
     token.type = type;
     token.start = lexer->start;
@@ -143,7 +143,7 @@ static bool is_alpha(char c) {
     return (c >= 'A' && c <= 'Z') || c == '_' || (c >= 'a'&& c <= 'z');
 }
 
-static Token_Type lexer_identifier_or_keyword(Lexer* lexer) {
+static TokenType lexer_identifier_or_keyword(Lexer* lexer) {
 #define KEYWORD(expected, length, type) \
     lexer->current - lexer->start == (length) && \
     strncmp(lexer->start, (expected), (length)) == 0 ? (type) : token_identifier

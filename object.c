@@ -16,10 +16,20 @@ static String* string_new(size_t length) {
     return string;
 }
 
+uint32_t string_hash(String* string) {
+    uint32_t hash = 2166136261u;
+    for (size_t i = 0; i < string->length; ++i) {
+        hash ^= (uint8_t)string->chars[i];
+        hash *= 16777619;
+    }
+    return hash;
+}
+
 String* string_copy(const char* start, size_t length) {
     String* string = string_new(length);
     memcpy(string->chars, start, length);
     string->chars[length] = 0;
+    string->hash = string_hash(string);
     return string;
 }
 
@@ -28,6 +38,7 @@ String* string_concatenate(String* x, String* y) {
     memcpy(string->chars, x->chars, x->length);
     memcpy(string->chars + x->length, y->chars, y->length);
     string->chars[string->length] = 0;
+    string->hash = string_hash(string);
     return string;
 }
 
@@ -38,11 +49,13 @@ String* string_exponent(String* x, double n) {
         memcpy(string->chars + i * x->length, x->chars, x->length);
     }
     string->chars[string->length] = 0;
+    string->hash = string_hash(string);
     return string;
 }
 
 String* string_from_number(double n) {
     String* string = string_new((size_t)snprintf(NULL, 0, "%g", n));
     snprintf(string->chars, string->length + 1, "%g", n);
+    string->hash = string_hash(string);
     return string;
 }
