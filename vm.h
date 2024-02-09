@@ -42,12 +42,11 @@ typedef struct {
     ByteArray bytes;
     NumberArray line_numbers;
     ValueArray values;
-    HashTable constants;
 } Chunk;
 
 void chunk_init(Chunk*);
 void chunk_add_byte(Chunk*, uint8_t, size_t);
-size_t chunk_add_constant(Chunk*, Value);
+size_t chunk_add_constant(Chunk*, HashTable*, Value);
 void chunk_free(Chunk*);
 
 #ifdef DEBUG

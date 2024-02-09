@@ -31,6 +31,7 @@ Rule rules[];
 
 typedef struct Compiler {
     Chunk* chunk;
+    HashTable constants;
     Lexer* lexer;
     Token previous_token;
     Token current_token;
@@ -84,7 +85,7 @@ static void compiler_emit_byte(Compiler* compiler, uint8_t byte) {
 
 static void compiler_emit_constant(Compiler* compiler, Value value) {
     compiler_emit_byte(compiler, op_constant);
-    compiler_emit_byte(compiler, (uint8_t)chunk_add_constant(compiler->chunk, value));
+    compiler_emit_byte(compiler, (uint8_t)chunk_add_constant(compiler->chunk, &compiler->constants, value));
 }
 
 static void compiler_string_constant(Compiler* compiler, Token* token) {
@@ -243,6 +244,7 @@ bool compile_chunk(const char* source, Chunk* chunk) {
     Lexer lexer;
     lexer_init(&lexer, source);
     compiler.chunk = chunk;
+    hash_table_init(&compiler.constants);
     compiler.lexer = &lexer;
     compiler.error = false;
     compiler_advance(&compiler);
@@ -252,5 +254,6 @@ bool compile_chunk(const char* source, Chunk* chunk) {
             compiler_emit_byte(&compiler, op_return);
         }
     }
+    hash_table_free(&compiler.constants);
     return !compiler.error;
 }

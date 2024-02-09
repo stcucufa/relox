@@ -12,7 +12,6 @@ void chunk_init(Chunk* chunk) {
     byte_array_init(&chunk->bytes);
     number_array_init(&chunk->line_numbers);
     value_array_init(&chunk->values);
-    hash_table_init(&chunk->constants);
 }
 
 void chunk_add_byte(Chunk* chunk, uint8_t byte, size_t line_number) {
@@ -26,15 +25,15 @@ void chunk_add_byte(Chunk* chunk, uint8_t byte, size_t line_number) {
     }
 }
 
-size_t chunk_add_constant(Chunk* chunk, Value v) {
+size_t chunk_add_constant(Chunk* chunk, HashTable* constants, Value v) {
     // TODO too many constants (more than UINT8_MAX)
     Value j = VALUE_NONE;
-    if (hash_table_get(&chunk->constants, v, &j)) {
+    if (hash_table_get(constants, v, &j)) {
         return (size_t)VALUE_TO_INT(j);
     }
     size_t i = chunk->values.count;
     value_array_push(&chunk->values, v);
-    hash_table_set(&chunk->constants, v, VALUE_FROM_INT(i));
+    hash_table_set(constants, v, VALUE_FROM_INT(i));
     return i;
 }
 
@@ -42,7 +41,6 @@ void chunk_free(Chunk* chunk) {
     byte_array_free(&chunk->bytes);
     number_array_free(&chunk->line_numbers);
     value_array_free(&chunk->values);
-    hash_table_free(&chunk->constants);
     chunk_init(chunk);
 }
 
