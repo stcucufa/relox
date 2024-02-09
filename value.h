@@ -10,6 +10,7 @@
 typedef union {
     double as_double;
     uint64_t as_int;
+    char as_bytes[8];
 } Value;
 
 #define QNAN 0x7ffc000000000000
@@ -25,6 +26,9 @@ enum {
     tag_mask = 7,
 };
 
+#define VALUE_EQUAL(v, w) (v.as_int == w.as_int)
+
+#define VALUE_NONE (Value){ .as_int = QNAN | tag_mask }
 #define VALUE_NIL (Value){ .as_int = QNAN | tag_nil }
 #define VALUE_FALSE (Value){ .as_int = QNAN | tag_false }
 #define VALUE_TRUE (Value){ .as_int = QNAN | tag_true }
@@ -33,6 +37,7 @@ enum {
 
 #define VALUE_TAG(v) ((v).as_int & tag_mask)
 
+#define VALUE_IS_NONE(v) ((v).as_int == (QNAN | tag_mask))
 #define VALUE_IS_NIL(v) (VALUE_TAG(v) == tag_nil)
 #define VALUE_IS_BOOLEAN(v) (((v).as_int & 6) == 2)
 #define VALUE_IS_FALSE(v) (VALUE_TAG(v) == tag_false)
@@ -46,6 +51,7 @@ enum {
 void value_print(FILE*, Value);
 bool value_equal(Value, Value);
 Value value_stringify(Value);
+uint32_t value_hash(Value);
 void value_free_object(Value);
 
 #endif

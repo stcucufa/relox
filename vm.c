@@ -134,12 +134,12 @@ static Result runtime_error(VM* vm, const char* format, ...) {
 Value vm_add_object(VM* vm, Value v) {
     if (VALUE_IS_STRING(v)) {
         String* string = VALUE_TO_STRING(v);
-        String* interned = hash_table_find_string(&vm->strings, string);
-        if (interned) {
+        Value interned = hash_table_find_string(&vm->strings, string);
+        if (VALUE_IS_STRING(interned)) {
             free(string);
-            return VALUE_FROM_STRING(interned);
+            return interned;
         }
-        hash_table_set(&vm->strings, string, v);
+        hash_table_set(&vm->strings, v, v);
     }
     value_array_push(&vm->objects, v);
     return v;

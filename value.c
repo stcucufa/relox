@@ -47,6 +47,10 @@ bool value_equal(Value x, Value y) {
     return x.as_double == y.as_double;
 }
 
+uint32_t value_hash(Value v) {
+    return VALUE_IS_STRING(v) ? VALUE_TO_STRING(v)->hash : bytes_hash(v.as_bytes, 8);
+}
+
 void value_free_object(Value v) {
     if (VALUE_IS_STRING(v)) {
 #ifdef DEBUG

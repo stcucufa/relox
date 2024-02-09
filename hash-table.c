@@ -9,13 +9,13 @@ void hash_table_init(HashTable* table) {
     table->entries = 0;
 }
 
-static Entry* hash_table_find_entry(Entry* entries, size_t capacity, String* key) {
+static Entry* hash_table_find_entry(Entry* entries, size_t capacity, Value key) {
     Entry* tombstone = 0;
-    size_t index = (size_t)key->hash % capacity;
+    size_t index = (size_t)value_hash(key) % capacity;
     for (;;) {
         Entry* entry = &entries[index];
-        if (!entry->key) {
-            if (VALUE_IS_NIL(entry->value)) {
+        if (VALUE_IS_NONE(entry->key)) {
+            if (VALUE_IS_NONE(entry->value)) {
                 if (tombstone) {
                     return tombstone;
                 }
@@ -25,7 +25,7 @@ static Entry* hash_table_find_entry(Entry* entries, size_t capacity, String* key
                     tombstone = entry;
                 }
             }
-        } else if (entry->key == key) {
+        } else if (VALUE_EQUAL(entry->key, key)) {
             return entry;
         }
         index = (index + 1) % capacity;
@@ -35,8 +35,8 @@ static Entry* hash_table_find_entry(Entry* entries, size_t capacity, String* key
 static void hash_table_adjust_capacity(HashTable* table, size_t capacity) {
     Entry* entries = calloc(capacity, sizeof(Entry));
     for (size_t i = 0; i < capacity; ++i) {
-        entries[i].key = 0;
-        entries[i].value = VALUE_NIL;
+        entries[i].key = VALUE_NONE;
+        entries[i].value = VALUE_NONE;
     }
 
 #ifdef DEBUG
@@ -47,7 +47,7 @@ static void hash_table_adjust_capacity(HashTable* table, size_t capacity) {
     table->count = 0;
     for (int i = 0; i < table->capacity; ++i) {
         Entry* entry = &table->entries[i];
-        if (entry->key != 0) {
+        if (!VALUE_IS_NONE(entry->key)) {
             Entry* dest = hash_table_find_entry(entries, capacity, entry->key);
             dest->key = entry->key;
             dest->value = entry->value;
@@ -60,7 +60,7 @@ static void hash_table_adjust_capacity(HashTable* table, size_t capacity) {
     table->capacity = capacity;
 }
 
-bool hash_table_set(HashTable* table, String* key, Value value) {
+bool hash_table_set(HashTable* table, Value key, Value value) {
     if (table->count + 1 > table->capacity * HASH_TABLE_MAX_LOAD) {
         size_t capacity = table->capacity < ARRAY_MIN_CAPACITY ?
             ARRAY_MIN_CAPACITY : ARRAY_GROW_FACTOR * table->capacity;
@@ -68,8 +68,8 @@ bool hash_table_set(HashTable* table, String* key, Value value) {
     }
 
     Entry* entry = hash_table_find_entry(table->entries, table->capacity, key);
-    bool new_key = entry->key == 0;
-    if (new_key && VALUE_IS_NIL(entry->value)) {
+    bool new_key = VALUE_IS_NONE(entry->key);
+    if (new_key && VALUE_IS_NONE(entry->value)) {
         table->count += 1;
     }
 
@@ -78,49 +78,49 @@ bool hash_table_set(HashTable* table, String* key, Value value) {
     return new_key;
 }
 
-bool hash_table_get(HashTable* table, String* key, Value* value) {
+bool hash_table_get(HashTable* table, Value key, Value* value) {
     if (table->count == 0) {
         return false;
     }
 
     Entry* entry = hash_table_find_entry(table->entries, table->capacity, key);
-    if (!entry->key) {
+    if (VALUE_IS_NONE(entry->key)) {
         return false;
     }
     *value = entry->value;
     return true;
 }
 
-String* hash_table_find_string(HashTable* table, String* key) {
+Value hash_table_find_string(HashTable* table, String* key) {
     if (table->count == 0) {
-        return 0;
+        return VALUE_NONE;
     }
 
     size_t index = (size_t)key->hash % table->capacity;
     for (;;) {
         Entry* entry = &table->entries[index];
-        if (!entry->key) {
-            if (VALUE_IS_NIL(entry->value)) {
-                return 0;
+        if (VALUE_IS_NONE(entry->key)) {
+            if (VALUE_IS_NONE(entry->value)) {
+                return VALUE_NONE;
             }
-        } else if (string_equal(entry->key, key)) {
+        } else if (string_equal(VALUE_TO_STRING(entry->key), key)) {
             return entry->key;
         }
         index = (index + 1) % table->capacity;
     }
 }
 
-bool hash_table_delete(HashTable* table, String* key) {
+bool hash_table_delete(HashTable* table, Value key) {
     if (table->count == 0) {
         return false;
     }
 
     Entry* entry = hash_table_find_entry(table->entries, table->capacity, key);
-    if (!entry->key) {
+    if (VALUE_IS_NONE(entry->key)) {
         return false;
     }
-    entry->key = 0;
-    entry->value = VALUE_TRUE;
+    entry->key = VALUE_NONE;
+    entry->value = VALUE_NIL;
     return true;
 }
 
