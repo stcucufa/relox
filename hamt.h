@@ -21,4 +21,8 @@ Value hamt_get(HAMT*, Value);
 void hamt_set(HAMT*, Value, Value);
 void hamt_free(HAMT*);
 
+#ifdef DEBUG
+void hamt_debug(HAMT*);
+#endif
+
 #endif

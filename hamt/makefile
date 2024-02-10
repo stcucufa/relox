@@ -1,7 +1,10 @@
-TARGET =	relox
-OBJECTS =	array.o compiler.o hamt.o hash-table.o lexer.o main.o object.o value.o vm.o
+TARGET =	hamt-test
+OBJECTS =	../hamt.o ../object.o ../value.o main.o
 CFLAGS =	-Wall -pedantic -g -DDEBUG
 LDFLAGS =	-lm
+
+check:	$(TARGET)
+	./$(TARGET) && echo OK
 
 $(TARGET):	$(OBJECTS)
 	$(CC) $^ $(LDFLAGS) -o $@
