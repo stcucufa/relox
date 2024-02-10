@@ -12,7 +12,7 @@ typedef union {
     uint64_t as_int;
 } Value;
 
-#define QNAN 0x7ffc000000000000
+#define QNAN 0x7ff8000000000000
 #define OBJECT_MASK 0x0000fffffffffff8
 
 enum {
