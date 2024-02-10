@@ -42,7 +42,7 @@ enum {
 #define VALUE_TAG(v) ((v).as_int & tag_mask)
 
 #define VALUE_IS_NONE(v) ((v).as_int == NONE)
-#define VALUE_IS_HAMT_NODE(v) ((v).as_int == HAMT_NODE)
+#define VALUE_IS_HAMT_NODE(v) (((v).as_int & HAMT_NODE) == HAMT_NODE)
 #define VALUE_IS_NIL(v) (VALUE_TAG(v) == tag_nil)
 #define VALUE_IS_BOOLEAN(v) (((v).as_int & 6) == 2)
 #define VALUE_IS_FALSE(v) (VALUE_TAG(v) == tag_false)
@@ -53,6 +53,7 @@ enum {
 #define VALUE_TO_STRING(v) ((String*)((v).as_int & OBJECT_MASK))
 #define VALUE_TO_CSTRING(v) (VALUE_TO_STRING(v)->chars)
 #define VALUE_TO_INT(v) ((int64_t)(v).as_double)
+#define VALUE_TO_HAMT_NODE_BITMAP(v) ((uint32_t)(v).as_int)
 
 void value_print(FILE*, Value);
 bool value_equal(Value, Value);

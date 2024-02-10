@@ -7,13 +7,13 @@ typedef struct HAMTNode {
     Value key;
     union {
         Value value;
-        struct HAMTNode* map;
+        struct HAMTNode* nodes;
     } content;
 } HAMTNode;
 
 typedef struct {
     size_t count;
-    HAMTNode* root;
+    HAMTNode root;
 } HAMT;
 
 void hamt_init(HAMT*);
