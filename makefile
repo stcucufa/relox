@@ -1,4 +1,4 @@
-OBJECTS =	array.o compiler.o hash-table.o lexer.o main.o object.o value.o vm.o
+OBJECTS =	array.o compiler.o hamt.o hash-table.o lexer.o main.o object.o value.o vm.o
 CFLAGS =	-Wall -pedantic -g -DDEBUG
 LDFLAGS =	-lm
 

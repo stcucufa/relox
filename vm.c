@@ -25,15 +25,15 @@ void chunk_add_byte(Chunk* chunk, uint8_t byte, size_t line_number) {
     }
 }
 
-size_t chunk_add_constant(Chunk* chunk, HashTable* constants, Value v) {
+size_t chunk_add_constant(Chunk* chunk, HAMT* constants, Value v) {
     // TODO too many constants (more than UINT8_MAX)
-    Value j = VALUE_NONE;
-    if (hash_table_get(constants, v, &j)) {
+    Value j = hamt_get(constants, v);
+    if (!VALUE_IS_NONE(j)) {
         return (size_t)VALUE_TO_INT(j);
     }
     size_t i = chunk->values.count;
     value_array_push(&chunk->values, v);
-    hash_table_set(constants, v, VALUE_FROM_INT(i));
+    hamt_set(constants, v, VALUE_FROM_INT(i));
     return i;
 }
 

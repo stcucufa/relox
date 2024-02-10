@@ -28,17 +28,19 @@ enum {
 
 #define VALUE_EQUAL(v, w) (v.as_int == w.as_int)
 
-#define VALUE_NONE (Value){ .as_int = QNAN | tag_mask }
 #define VALUE_NIL (Value){ .as_int = QNAN | tag_nil }
 #define VALUE_FALSE (Value){ .as_int = QNAN | tag_false }
 #define VALUE_TRUE (Value){ .as_int = QNAN | tag_true }
+#define VALUE_NONE (Value){ .as_int = QNAN | tag_string }
+#define VALUE_HAMT_NODE (Value){ .as_int = QNAN | tag_count }
 #define VALUE_FROM_STRING(x) (Value){ .as_int = (uintptr_t)(x) | QNAN | tag_string }
 #define VALUE_FROM_NUMBER(x) (Value){ .as_double = (x) }
 #define VALUE_FROM_INT(x) (Value){ .as_double = (double)(x) }
 
 #define VALUE_TAG(v) ((v).as_int & tag_mask)
 
-#define VALUE_IS_NONE(v) ((v).as_int == (QNAN | tag_mask))
+#define VALUE_IS_NONE(v) ((v).as_int == (QNAN | tag_string))
+#define VALUE_IS_HAMT_NODE(v) ((v).as_int == (QNAN | tag_count))
 #define VALUE_IS_NIL(v) (VALUE_TAG(v) == tag_nil)
 #define VALUE_IS_BOOLEAN(v) (((v).as_int & 6) == 2)
 #define VALUE_IS_FALSE(v) (VALUE_TAG(v) == tag_false)
