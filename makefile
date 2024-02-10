@@ -9,6 +9,11 @@ $(TARGET):	$(OBJECTS)
 %.o:	%.c
 	$(CC) -c $(CFLAGS) $< -o $@
 
-.PHONY:	clean
+.PHONY:	check clean
+
+check:
+	cd hamt && $(MAKE) check
+
 clean:
 	rm -f $(TARGET) $(OBJECTS)
+	cd hamt && $(MAKE) clean
