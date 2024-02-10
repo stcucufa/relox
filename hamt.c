@@ -41,6 +41,27 @@ Value hamt_get(HAMT* hamt, Value key) {
     return VALUE_NONE;
 }
 
+Value hamt_get_string(HAMT* hamt, String* string) {
+    uint32_t hash = string->hash;
+    HAMTNode node = hamt->root;
+    for (size_t i = 0; i < 6; ++i) {
+        uint32_t mask = 1 << (hash & 0x1f);
+        uint32_t bitmap = VALUE_TO_HAMT_NODE_BITMAP(node.key);
+        if ((bitmap & mask) == 0) {
+            return VALUE_NONE;
+        }
+        size_t j = __builtin_popcount(bitmap & (mask - 1));
+        node = node.content.nodes[j];
+        if (!VALUE_IS_HAMT_NODE(node.key)) {
+            return string_equal(VALUE_TO_STRING(node.content.value), string) ?
+                node.content.value : VALUE_NONE;
+        }
+        hash >>= 5;
+    }
+    // TODO rehash
+    return VALUE_NONE;
+}
+
 void hamt_set(HAMT* hamt, Value key, Value value) {
     uint32_t hash = value_hash(key);
     HAMTNode* node = &hamt->root;

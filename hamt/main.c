@@ -9,6 +9,8 @@ int main(int argc, char* argv[argc + 1]) {
     HAMT hamt;
     hamt_init(&hamt);
 
+    // TODO test numbers from 0 to 131151 (double collision)
+
     hamt_set(&hamt, VALUE_FROM_NUMBER(29), VALUE_FROM_NUMBER(0));
 #ifdef DEBUG
     hamt_debug(&hamt);
@@ -30,6 +32,11 @@ int main(int argc, char* argv[argc + 1]) {
 #endif
 
     hamt_set(&hamt, VALUE_FROM_NUMBER(32), VALUE_FROM_NUMBER(5));
+#ifdef DEBUG
+    hamt_debug(&hamt);
+#endif
+
+    hamt_set(&hamt, VALUE_FROM_NUMBER(33), VALUE_FROM_NUMBER(7777));
 #ifdef DEBUG
     hamt_debug(&hamt);
 #endif

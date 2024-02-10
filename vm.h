@@ -6,7 +6,6 @@
 
 #include "array.h"
 #include "hamt.h"
-#include "hash-table.h"
 #include "object.h"
 #include "value.h"
 
@@ -62,7 +61,7 @@ typedef struct VM {
     Value stack[STACK_SIZE];
     Value* sp;
     uint8_t* ip;
-    HashTable strings;
+    HAMT strings;
     ValueArray objects;
 } VM;
 
