@@ -26,6 +26,7 @@ typedef enum {
     token_le,
     token_equal_equal,
     token_ge,
+    token_infinity,
     token_string,
     token_string_prefix,
     token_string_infix,

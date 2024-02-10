@@ -13,6 +13,7 @@ typedef enum {
     op_nil,
     op_zero,
     op_one,
+    op_infinity,
     op_constant,
     op_negate,
     op_add,

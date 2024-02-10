@@ -29,6 +29,7 @@ char const*const tokens[token_count] = {
     [token_equal_equal] = "equal + equal",
     [token_star_star] = "star + star",
     [token_ge] = "ge",
+    [token_infinity] = "infinity",
     [token_string] = "string",
     [token_string_prefix] = "string prefix",
     [token_string_infix] = "string infix",
@@ -135,6 +136,12 @@ Token lexer_string(Lexer* lexer, char open) {
     }
 }
 
+// ∞ (0x221e), UTF-8: 0xe2 0x88 0x9e
+Token lexer_infinity(Lexer* lexer) {
+    return ((unsigned char)*lexer->current++ == 0x88) && ((unsigned char)*lexer->current++ == 0x9e) ?
+        lexer_token(lexer, token_infinity) : lexer_error(lexer, "unknown unicode character (expected ∞)");
+}
+
 static bool is_digit(char c) {
     return c >= '0' && c <= '9';
 }
@@ -190,7 +197,7 @@ Token lexer_advance(Lexer* lexer) {
     }
 
     char c = *lexer->current++;
-    switch (c) {
+    switch ((unsigned char)c) {
         case '!': return TOKEN(MATCH('=') ? token_bang_equal : token_bang);
         case '"': return lexer_string(lexer, c);
         case '\'': return TOKEN(token_quote);
@@ -208,6 +215,7 @@ Token lexer_advance(Lexer* lexer) {
         case '>': return TOKEN(MATCH('=') ? token_ge : token_gt);
         case '{': return TOKEN(token_open_brace);
         case '}': return lexer->string_nesting == 0 ? TOKEN(token_close_brace) : lexer_string(lexer, c);
+        case 0xe2: return lexer_infinity(lexer);
     }
 
     if (is_digit(c)) {

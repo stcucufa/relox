@@ -134,6 +134,10 @@ static void led_string_suffix(Compiler* compiler) {
 }
 
 static void nud_number(Compiler* compiler) {
+    if (compiler->previous_token.type == token_infinity) {
+        compiler_emit_byte(compiler, op_infinity);
+        return;
+    }
     double value = strtod(compiler->previous_token.start, 0);
     if (value == 0.0) {
         compiler_emit_byte(compiler, op_zero);
@@ -222,6 +226,7 @@ Rule rules[] = {
     [token_string_infix] = { 0, led_string_suffix, precedence_interpolation },
     [token_string_suffix] = { 0, led_string_suffix, precedence_interpolation },
     [token_star_star] = { 0, led_right_op, precedence_exponentiation },
+    [token_infinity] = { nud_number, 0, precedence_none },
     [token_number] = { nud_number, 0, precedence_none },
     [token_false] = { nud_false, 0, precedence_none },
     [token_nil] = { nud_nil, 0, precedence_none },

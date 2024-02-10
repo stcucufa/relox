@@ -1,4 +1,5 @@
 #include <inttypes.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -6,7 +7,13 @@
 
 void value_print(FILE* stream, Value v) {
     if (VALUE_IS_NUMBER(v)) {
-        fprintf(stream, "%g", v.as_double);
+        if (v.as_double == INFINITY) {
+            fputs("∞", stream);
+        } else if (v.as_double == -INFINITY) {
+            fputs("-∞", stream);
+        } else {
+            fprintf(stream, "%g", v.as_double);
+        }
     } else {
         switch (VALUE_TAG(v)) {
             case tag_nil: fprintf(stream, "nil"); break;

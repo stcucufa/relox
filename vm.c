@@ -50,6 +50,7 @@ char const*const opcodes[opcode_count] = {
     [op_nil] = "nil",
     [op_zero] = "zero",
     [op_one] = "one",
+    [op_infinity] = "infinity",
     [op_constant] = "constant",
     [op_negate] = "negate",
     [op_add] = "add",
@@ -83,6 +84,7 @@ void chunk_debug(Chunk* chunk, const char* name) {
             case op_nil:
             case op_zero:
             case op_one:
+            case op_infinity:
             case op_negate:
             case op_add:
             case op_subtract:
@@ -206,6 +208,7 @@ Result vm_run(VM* vm, const char* source) {
             case op_nil: PUSH(VALUE_NIL); break;
             case op_zero: PUSH(VALUE_FROM_NUMBER(0)); break;
             case op_one: PUSH(VALUE_FROM_NUMBER(1)); break;
+            case op_infinity: PUSH(VALUE_FROM_NUMBER(INFINITY)); break;
             case op_constant: PUSH(chunk.values.items[BYTE()]); break;
             case op_negate:
                 if (!VALUE_IS_NUMBER(PEEK(0))) {
