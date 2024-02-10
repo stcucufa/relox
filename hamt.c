@@ -90,6 +90,21 @@ void hamt_set(HAMT* hamt, Value key, Value value) {
     // TODO rehash
 }
 
+static void hamt_free_node(HAMTNode* node) {
+    size_t k = __builtin_popcount(VALUE_TO_HAMT_NODE_BITMAP(node->key));
+    for (size_t i = 0; i < k; ++i) {
+        HAMTNode* child_node = &node->content.nodes[i];
+        if (VALUE_IS_HAMT_NODE(child_node->key)) {
+            hamt_free_node(child_node);
+        }
+    }
+#ifdef DEBUG
+    fprintf(stderr, "--- hamt_free_node(): freed nodes (%zu)\n", k);
+#endif
+    free(node->content.nodes);
+}
+
 void hamt_free(HAMT* hamt) {
-    // TODO
+    hamt_free_node(&hamt->root);
+    hamt_init(hamt);
 }
