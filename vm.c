@@ -70,6 +70,7 @@ char const*const opcodes[opcode_count] = {
     [op_quote] = "quote",
     [op_print] = "print",
     [op_pop] = "pop",
+    [op_define_global] = "define/global",
     [op_return] = "return",
     [op_nop] = "nop",
 };
@@ -109,7 +110,8 @@ void chunk_debug(Chunk* chunk, const char* name) {
             case op_nop:
                 fprintf(stderr, "    %s\n", opcodes[opcode]);
                 break;
-            case op_constant: {
+            case op_constant:
+            case op_define_global: {
                 uint8_t arg = chunk->bytes.items[i];
                 fprintf(stderr, "%02x  %s ", arg, opcodes[opcode]);
                 value_printf(stderr, chunk->values.items[arg]);
@@ -162,6 +164,7 @@ Result vm_run(VM* vm, const char* source) {
     chunk_init(&chunk);
     chunk.vm = vm;
     hamt_init(&vm->strings);
+    hamt_init(&vm->globals);
     value_array_init(&vm->objects);
     if (!compile_chunk(source, &chunk)) {
         chunk_free(&chunk);
@@ -177,6 +180,7 @@ Result vm_run(VM* vm, const char* source) {
     vm->sp = vm->stack;
 
 #define BYTE() *vm->ip++
+#define CONSTANT() chunk.values.items[BYTE()]
 #define PUSH(x) *vm->sp++ = (x)
 #define POP() (*(--vm->sp))
 #define PEEK(i) (*(vm->sp - 1 - (i)))
@@ -213,7 +217,7 @@ Result vm_run(VM* vm, const char* source) {
             case op_zero: PUSH(VALUE_FROM_NUMBER(0)); break;
             case op_one: PUSH(VALUE_FROM_NUMBER(1)); break;
             case op_infinity: PUSH(VALUE_FROM_NUMBER(INFINITY)); break;
-            case op_constant: PUSH(chunk.values.items[BYTE()]); break;
+            case op_constant: PUSH(CONSTANT()); break;
             case op_negate:
                 if (!VALUE_IS_NUMBER(PEEK(0))) {
                     return runtime_error(vm, "Operand for negate is not a number.");
@@ -272,6 +276,7 @@ Result vm_run(VM* vm, const char* source) {
             case op_le: BINARY_OP_BOOLEAN(<=); break;
             case op_quote: POKE(0, value_stringify(PEEK(0))); break;
             case op_pop: POP(); break;
+            case op_define_global: hamt_set(&chunk.vm->globals, CONSTANT(), POP()); break;
             case op_print:
                 value_print(POP());
                 puts("");
@@ -306,7 +311,13 @@ Result vm_run(VM* vm, const char* source) {
 }
 
 void vm_free(VM* vm) {
+#ifdef DEBUG
+    hamt_debug(&vm->strings);
+    hamt_debug(&vm->globals);
+#endif
+
     hamt_free(&vm->strings);
+    hamt_free(&vm->globals);
     for (size_t i = 0; i < vm->objects.count; ++i) {
         value_free_object(vm->objects.items[i]);
     }

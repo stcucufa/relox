@@ -33,6 +33,7 @@ typedef enum {
     op_quote,
     op_print,
     op_pop,
+    op_define_global,
     op_return,
     op_nop,
     opcode_count
@@ -64,6 +65,7 @@ typedef struct VM {
     Value* sp;
     uint8_t* ip;
     HAMT strings;
+    HAMT globals;
     ValueArray objects;
 } VM;
 

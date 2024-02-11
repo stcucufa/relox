@@ -56,6 +56,14 @@ static void compiler_error(Compiler* compiler, Token* token, const char* message
 static void compiler_advance(Compiler*);
 static void compiler_emit_byte(Compiler*, uint8_t);
 
+static bool compiler_match(Compiler* compiler, TokenType type) {
+    if (compiler->current_token.type == type) {
+        compiler_advance(compiler);
+        return true;
+    }
+    return false;
+}
+
 static void compiler_consume(Compiler* compiler, TokenType type, const char* message) {
     if (compiler->current_token.type == type) {
         compiler_advance(compiler);
@@ -104,19 +112,22 @@ static void compiler_emit_byte(Compiler* compiler, uint8_t byte) {
     chunk_add_byte(compiler->chunk, byte, compiler->lexer->line);
 }
 
-static void compiler_emit_constant(Compiler* compiler, Value value) {
+static uint8_t compiler_emit_constant(Compiler* compiler, Value value) {
     compiler_emit_byte(compiler, op_constant);
-    compiler_emit_byte(compiler, (uint8_t)chunk_add_constant(compiler->chunk, &compiler->constants, value));
+    uint8_t n = (uint8_t)chunk_add_constant(compiler->chunk, &compiler->constants, value);
+    compiler_emit_byte(compiler, n);
+    return n;
 }
 
-static void compiler_string_constant(Compiler* compiler, Token* token) {
-    Value string = VALUE_FROM_STRING(string_copy(token->start + 1, token->length - (
-        token->type == token_string_prefix || token->type == token_string_infix ? 3 : 2
-    )));
+static uint8_t compiler_string_constant(Compiler* compiler, Token* token) {
+    size_t offset = token->type == token_identifier ? 0 : 1;
+    size_t trim = token->type == token_identifier ? 0 :
+        (token->type == token_string_prefix || token->type == token_string_infix ? 3 : 2);
+    Value string = VALUE_FROM_STRING(string_copy(token->start + offset, token->length - trim));
 #ifdef DEBUG
     fputs("\n", stderr);
 #endif
-    compiler_emit_constant(compiler, vm_add_object(compiler->chunk->vm, string));
+    return compiler_emit_constant(compiler, vm_add_object(compiler->chunk->vm, string));
 }
 
 static void compiler_string_interpolation(Compiler* compiler) {
@@ -139,6 +150,20 @@ static void statement_print(Compiler* compiler) {
     }
 }
 
+static void statement_var(Compiler* compiler) {
+    compiler_consume(compiler, token_identifier, "expected variable name (identifier)");
+    if (!compiler->error) {
+        uint8_t n = compiler_string_constant(compiler, &compiler->previous_token);
+        if (compiler_match(compiler, token_equal)) {
+            compiler_parse_expression(compiler, precedence_none);
+        } else {
+            compiler_emit_byte(compiler, op_nil);
+        }
+        compiler_emit_byte(compiler, op_define_global);
+        compiler_emit_byte(compiler, n);
+    }
+}
+
 static void nud_group(Compiler* compiler) {
     if (compiler_parse_expression(compiler, precedence_none)) {
         compiler_consume(compiler, token_close_paren, "expected `)`");
@@ -146,16 +171,16 @@ static void nud_group(Compiler* compiler) {
 }
 
 static void nud_string(Compiler* compiler) {
-    compiler_string_constant(compiler, &compiler->previous_token);
+    (void)compiler_string_constant(compiler, &compiler->previous_token);
 }
 
 static void nud_string_prefix(Compiler* compiler) {
-    compiler_string_constant(compiler, &compiler->previous_token);
+    (void)compiler_string_constant(compiler, &compiler->previous_token);
     compiler_string_interpolation(compiler);
 }
 
 static void led_string_suffix(Compiler* compiler) {
-    compiler_string_constant(compiler, &compiler->previous_token);
+    (void)compiler_string_constant(compiler, &compiler->previous_token);
     compiler_emit_byte(compiler, op_multiply);
     if (compiler->previous_token.type == token_string_infix) {
         compiler_string_interpolation(compiler);
@@ -173,7 +198,7 @@ static void nud_number(Compiler* compiler) {
     } else if (value == 1.0) {
         compiler_emit_byte(compiler, op_one);
     } else {
-        compiler_emit_constant(compiler, VALUE_FROM_NUMBER(value));
+        (void)compiler_emit_constant(compiler, VALUE_FROM_NUMBER(value));
     }
 }
 
@@ -236,7 +261,8 @@ static void led_right_op(Compiler* compiler) {
 }
 
 Denotation statements[] = {
-    [token_print] = statement_print
+    [token_print] = statement_print,
+    [token_var] = statement_var,
 };
 
 Rule rules[] = {
