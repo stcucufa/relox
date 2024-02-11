@@ -1,6 +1,7 @@
 #include <stdlib.h>
 
 #include "compiler.h"
+#include "hamt.h"
 #include "lexer.h"
 #include "object.h"
 #include "value.h"
@@ -31,7 +32,7 @@ Rule rules[];
 
 typedef struct Compiler {
     Chunk* chunk;
-    HashTable constants;
+    HAMT constants;
     Lexer* lexer;
     Token previous_token;
     Token current_token;
@@ -249,7 +250,7 @@ bool compile_chunk(const char* source, Chunk* chunk) {
     Lexer lexer;
     lexer_init(&lexer, source);
     compiler.chunk = chunk;
-    hash_table_init(&compiler.constants);
+    hamt_init(&compiler.constants);
     compiler.lexer = &lexer;
     compiler.error = false;
     compiler_advance(&compiler);
@@ -259,6 +260,6 @@ bool compile_chunk(const char* source, Chunk* chunk) {
             compiler_emit_byte(&compiler, op_return);
         }
     }
-    hash_table_free(&compiler.constants);
+    hamt_free(&compiler.constants);
     return !compiler.error;
 }

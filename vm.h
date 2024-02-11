@@ -5,7 +5,7 @@
 #include <stddef.h>
 
 #include "array.h"
-#include "hash-table.h"
+#include "hamt.h"
 #include "object.h"
 #include "value.h"
 
@@ -47,7 +47,7 @@ typedef struct {
 
 void chunk_init(Chunk*);
 void chunk_add_byte(Chunk*, uint8_t, size_t);
-size_t chunk_add_constant(Chunk*, HashTable*, Value);
+size_t chunk_add_constant(Chunk*, HAMT*, Value);
 void chunk_free(Chunk*);
 
 #ifdef DEBUG
@@ -61,7 +61,7 @@ typedef struct VM {
     Value stack[STACK_SIZE];
     Value* sp;
     uint8_t* ip;
-    HashTable strings;
+    HAMT strings;
     ValueArray objects;
 } VM;
 

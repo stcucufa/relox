@@ -25,15 +25,15 @@ void chunk_add_byte(Chunk* chunk, uint8_t byte, size_t line_number) {
     }
 }
 
-size_t chunk_add_constant(Chunk* chunk, HashTable* constants, Value v) {
+size_t chunk_add_constant(Chunk* chunk, HAMT* constants, Value v) {
     // TODO too many constants (more than UINT8_MAX)
-    Value j = VALUE_NONE;
-    if (hash_table_get(constants, v, &j)) {
+    Value j = hamt_get(constants, v);
+    if (!VALUE_IS_NONE(j)) {
         return (size_t)VALUE_TO_INT(j);
     }
     size_t i = chunk->values.count;
     value_array_push(&chunk->values, v);
-    hash_table_set(constants, v, VALUE_FROM_INT(i));
+    hamt_set(constants, v, VALUE_FROM_INT(i));
     return i;
 }
 
@@ -142,12 +142,12 @@ static Result runtime_error(VM* vm, const char* format, ...) {
 Value vm_add_object(VM* vm, Value v) {
     if (VALUE_IS_STRING(v)) {
         String* string = VALUE_TO_STRING(v);
-        Value interned = hash_table_find_string(&vm->strings, string);
+        Value interned = hamt_get_string(&vm->strings, string);
         if (VALUE_IS_STRING(interned)) {
             free(string);
             return interned;
         }
-        hash_table_set(&vm->strings, v, v);
+        hamt_set(&vm->strings, v, v);
     }
     value_array_push(&vm->objects, v);
     return v;
@@ -157,7 +157,7 @@ Result vm_run(VM* vm, const char* source) {
     Chunk chunk;
     chunk_init(&chunk);
     chunk.vm = vm;
-    hash_table_init(&vm->strings);
+    hamt_init(&vm->strings);
     value_array_init(&vm->objects);
     if (!compile_chunk(source, &chunk)) {
         chunk_free(&chunk);
@@ -297,7 +297,7 @@ Result vm_run(VM* vm, const char* source) {
 }
 
 void vm_free(VM* vm) {
-    hash_table_free(&vm->strings);
+    hamt_free(&vm->strings);
     for (size_t i = 0; i < vm->objects.count; ++i) {
         value_free_object(vm->objects.items[i]);
     }
