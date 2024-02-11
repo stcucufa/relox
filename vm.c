@@ -71,6 +71,7 @@ char const*const opcodes[opcode_count] = {
     [op_print] = "print",
     [op_pop] = "pop",
     [op_define_global] = "define/global",
+    [op_get_global] = "get/global",
     [op_return] = "return",
     [op_nop] = "nop",
 };
@@ -111,7 +112,8 @@ void chunk_debug(Chunk* chunk, const char* name) {
                 fprintf(stderr, "    %s\n", opcodes[opcode]);
                 break;
             case op_constant:
-            case op_define_global: {
+            case op_define_global:
+            case op_get_global: {
                 uint8_t arg = chunk->bytes.items[i];
                 fprintf(stderr, "%02x  %s ", arg, opcodes[opcode]);
                 value_printf(stderr, chunk->values.items[arg]);
@@ -277,6 +279,7 @@ Result vm_run(VM* vm, const char* source) {
             case op_quote: POKE(0, value_stringify(PEEK(0))); break;
             case op_pop: POP(); break;
             case op_define_global: hamt_set(&chunk.vm->globals, CONSTANT(), POP()); break;
+            case op_get_global: PUSH(hamt_get(&chunk.vm->globals, CONSTANT())); break;
             case op_print:
                 value_print(POP());
                 puts("");

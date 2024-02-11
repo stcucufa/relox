@@ -34,6 +34,7 @@ typedef enum {
     op_print,
     op_pop,
     op_define_global,
+    op_get_global,
     op_return,
     op_nop,
     opcode_count

@@ -112,6 +112,11 @@ static void compiler_emit_byte(Compiler* compiler, uint8_t byte) {
     chunk_add_byte(compiler->chunk, byte, compiler->lexer->line);
 }
 
+static void compiler_emit_bytes(Compiler* compiler, uint8_t x, uint8_t y) {
+    chunk_add_byte(compiler->chunk, x, compiler->lexer->line);
+    chunk_add_byte(compiler->chunk, y, compiler->lexer->line);
+}
+
 static uint8_t compiler_emit_constant(Compiler* compiler, Value value) {
     compiler_emit_byte(compiler, op_constant);
     uint8_t n = (uint8_t)chunk_add_constant(compiler->chunk, &compiler->constants, value);
@@ -159,8 +164,7 @@ static void statement_var(Compiler* compiler) {
         } else {
             compiler_emit_byte(compiler, op_nil);
         }
-        compiler_emit_byte(compiler, op_define_global);
-        compiler_emit_byte(compiler, n);
+        compiler_emit_bytes(compiler, op_define_global, n);
     }
 }
 
@@ -185,6 +189,11 @@ static void led_string_suffix(Compiler* compiler) {
     if (compiler->previous_token.type == token_string_infix) {
         compiler_string_interpolation(compiler);
     }
+}
+
+static void nud_identifier(Compiler* compiler) {
+    uint8_t n = compiler_string_constant(compiler, &compiler->previous_token);
+    compiler_emit_bytes(compiler, op_get_global, n);
 }
 
 static void nud_number(Compiler* compiler) {
@@ -286,6 +295,7 @@ Rule rules[] = {
     [token_string_suffix] = { 0, led_string_suffix, precedence_interpolation },
     [token_star_star] = { 0, led_right_op, precedence_exponentiation },
     [token_infinity] = { nud_number, 0, precedence_none },
+    [token_identifier] = { nud_identifier, 0, precedence_none },
     [token_number] = { nud_number, 0, precedence_none },
     [token_false] = { nud_false, 0, precedence_none },
     [token_nil] = { nud_nil, 0, precedence_none },
@@ -312,12 +322,10 @@ bool compile_chunk(const char* source, Chunk* chunk) {
     compiler.lexer = &lexer;
     compiler.error = false;
     compiler_advance(&compiler);
-    if (compiler_parse_statement(&compiler)) {
-        compiler_consume(&compiler, token_eof, "expected end of input");
-        if (!compiler.error) {
-            compiler_emit_byte(&compiler, op_return);
-        }
-    }
+    do {
+        compiler_parse_statement(&compiler);
+    } while (!compiler_match(&compiler, token_eof));
+    compiler_emit_byte(&compiler, op_return);
     hamt_free(&compiler.constants);
     return !compiler.error;
 }
