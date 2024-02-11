@@ -68,6 +68,7 @@ char const*const opcodes[opcode_count] = {
     [op_lt] = "lt",
     [op_le] = "le",
     [op_quote] = "quote",
+    [op_print] = "print",
     [op_return] = "return",
     [op_nop] = "nop",
 };
@@ -101,6 +102,7 @@ void chunk_debug(Chunk* chunk, const char* name) {
             case op_lt:
             case op_le:
             case op_quote:
+            case op_print:
             case op_return:
             case op_nop:
                 fprintf(stderr, "    %s\n", opcodes[opcode]);
@@ -108,7 +110,7 @@ void chunk_debug(Chunk* chunk, const char* name) {
             case op_constant: {
                 uint8_t arg = chunk->bytes.items[i];
                 fprintf(stderr, "%02x  %s ", arg, opcodes[opcode]);
-                value_print(stderr, chunk->values.items[arg]);
+                value_printf(stderr, chunk->values.items[arg]);
                 fputc('\n', stderr);
                 i += 1;
                 k += 1;
@@ -267,13 +269,17 @@ Result vm_run(VM* vm, const char* source) {
             case op_lt: BINARY_OP_BOOLEAN(<); break;
             case op_le: BINARY_OP_BOOLEAN(<=); break;
             case op_quote: POKE(0, value_stringify(PEEK(0))); break;
+            case op_print:
+                value_print(POP());
+                puts("");
+                break;
             case op_nop: break;
         }
 #ifdef DEBUG
         fprintf(stderr, "%s {", opcodes[opcode]);
         for (Value* sp = vm->stack; sp != vm->sp; ++sp) {
             fputc(' ', stderr);
-            value_print(stderr, *sp);
+            value_printf(stderr, *sp);
         }
         fprintf(stderr, " }\n");
 #endif
@@ -281,7 +287,7 @@ Result vm_run(VM* vm, const char* source) {
 
 #ifdef DEBUG
     fprintf(stderr, "^^^ ");
-    value_print(stderr, *vm->stack);
+    value_printf(stderr, *vm->stack);
     fputs("\n", stderr);
 #endif
 

@@ -55,7 +55,8 @@ enum {
 #define VALUE_TO_INT(v) ((int64_t)(v).as_double)
 #define VALUE_TO_HAMT_NODE_BITMAP(v) ((uint32_t)(v).as_int)
 
-void value_print(FILE*, Value);
+void value_print(Value);
+void value_printf(FILE*, Value);
 bool value_equal(Value, Value);
 Value value_stringify(Value);
 uint32_t value_hash(Value);

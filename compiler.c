@@ -165,6 +165,7 @@ static void nud_unary_op(Compiler* compiler) {
     uint8_t op = op_nop;
     switch (compiler->previous_token.type) {
         case token_bang: op = op_not; break;
+        case token_print: op = op_print; break;
         case token_quote: op = op_quote; break;
         case token_minus: op = op_negate; break;
         default: break;
@@ -231,6 +232,7 @@ Rule rules[] = {
     [token_number] = { nud_number, 0, precedence_none },
     [token_false] = { nud_false, 0, precedence_none },
     [token_nil] = { nud_nil, 0, precedence_none },
+    [token_print] = { nud_unary_op, 0, precedence_none },
     [token_true] = { nud_true, 0, precedence_none },
     [token_eof] = { 0, 0, precedence_eof },
 };
