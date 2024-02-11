@@ -69,6 +69,7 @@ char const*const opcodes[opcode_count] = {
     [op_le] = "le",
     [op_quote] = "quote",
     [op_print] = "print",
+    [op_pop] = "pop",
     [op_return] = "return",
     [op_nop] = "nop",
 };
@@ -103,6 +104,7 @@ void chunk_debug(Chunk* chunk, const char* name) {
             case op_le:
             case op_quote:
             case op_print:
+            case op_pop:
             case op_return:
             case op_nop:
                 fprintf(stderr, "    %s\n", opcodes[opcode]);
@@ -269,6 +271,7 @@ Result vm_run(VM* vm, const char* source) {
             case op_lt: BINARY_OP_BOOLEAN(<); break;
             case op_le: BINARY_OP_BOOLEAN(<=); break;
             case op_quote: POKE(0, value_stringify(PEEK(0))); break;
+            case op_pop: POP(); break;
             case op_print:
                 value_print(POP());
                 puts("");

@@ -32,6 +32,7 @@ typedef enum {
     op_le,
     op_quote,
     op_print,
+    op_pop,
     op_return,
     op_nop,
     opcode_count
