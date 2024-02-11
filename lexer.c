@@ -5,7 +5,6 @@
 #include "lexer.h"
 
 #ifdef DEBUG
-#include <stdio.h>
 
 char const*const tokens[token_count] = {
     [token_begin] = "begin",

@@ -279,7 +279,7 @@ Result vm_run(VM* vm, const char* source) {
             case op_lt: BINARY_OP_BOOLEAN(<); break;
             case op_le: BINARY_OP_BOOLEAN(<=); break;
             case op_quote: POKE(0, value_stringify(PEEK(0))); break;
-            case op_pop: POP(); break;
+            case op_pop: (void)POP(); break;
             case op_define_global: hamt_set(&chunk.vm->globals, CONSTANT(), POP()); break;
             case op_get_global: {
                 Value name = CONSTANT();
