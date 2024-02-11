@@ -123,20 +123,25 @@ static void compiler_emit_constant(Compiler* compiler, Value value) {
     compiler_emit_byte(compiler, n);
 }
 
-static uint8_t compiler_add_string(Compiler* compiler, Token* token) {
-    size_t offset = token->type == token_identifier ? 0 : 1;
-    size_t trim = token->type == token_identifier ? 0 :
-        (token->type == token_string_prefix || token->type == token_string_infix ? 3 : 2);
+static void compiler_string_constant(Compiler* compiler, Token* token) {
+    size_t offset = 1;
+    size_t trim = token->type == token_string_prefix || token->type == token_string_infix ? 3 : 2;
     Value string = VALUE_FROM_STRING(string_copy(token->start + offset, token->length - trim));
 #ifdef DEBUG
     fputs("\n", stderr);
 #endif
     string = vm_add_object(compiler->chunk->vm, string);
-    return (uint8_t)chunk_add_constant(compiler->chunk, &compiler->constants, string);
+    uint8_t n = chunk_add_constant(compiler->chunk, &compiler->constants, string);
+    compiler_emit_bytes(compiler, op_constant, n);
 }
 
-static void compiler_string_constant(Compiler* compiler, Token* token) {
-    compiler_emit_bytes(compiler, op_constant, compiler_add_string(compiler, token));
+static uint8_t compiler_symbol(Compiler* compiler, Token* token) {
+    Value string = VALUE_FROM_STRING(string_copy(token->start, token->length));
+#ifdef DEBUG
+    fputs("\n", stderr);
+#endif
+    uint8_t n = vm_add_global(compiler->chunk->vm, string);
+    return n;
 }
 
 static void compiler_string_interpolation(Compiler* compiler) {
@@ -162,7 +167,7 @@ static void statement_print(Compiler* compiler) {
 static void statement_var(Compiler* compiler) {
     compiler_consume(compiler, token_identifier, "expected variable name (identifier)");
     if (!compiler->error) {
-        uint8_t n = compiler_add_string(compiler, &compiler->previous_token);
+        uint8_t n = compiler_symbol(compiler, &compiler->previous_token);
         if (compiler_match(compiler, token_equal)) {
             compiler_parse_expression(compiler, precedence_none);
         } else {
@@ -196,7 +201,7 @@ static void led_string_suffix(Compiler* compiler) {
 }
 
 static void nud_identifier(Compiler* compiler) {
-    uint8_t n = compiler_add_string(compiler, &compiler->previous_token);
+    uint8_t n = compiler_symbol(compiler, &compiler->previous_token);
     if (compiler_match(compiler, token_equal)) {
         compiler_parse_expression(compiler, precedence_none);
         compiler_emit_bytes(compiler, op_set_global, n);

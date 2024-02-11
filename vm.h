@@ -52,7 +52,7 @@ typedef struct {
 
 void chunk_init(Chunk*);
 void chunk_add_byte(Chunk*, uint8_t, size_t);
-size_t chunk_add_constant(Chunk*, HAMT*, Value);
+uint8_t chunk_add_constant(Chunk*, HAMT*, Value);
 void chunk_free(Chunk*);
 
 #ifdef DEBUG
@@ -66,9 +66,11 @@ typedef struct VM {
     Value stack[STACK_SIZE];
     Value* sp;
     uint8_t* ip;
+    HAMT symbols;
     HAMT strings;
-    HAMT globals;
     ValueArray objects;
+    ValueArray globals;
+    ValueArray symbol_names;
 } VM;
 
 typedef enum {
@@ -79,6 +81,7 @@ typedef enum {
 
 Result vm_run(VM*, const char*);
 Value vm_add_object(VM*, Value);
+uint8_t vm_add_global(VM*, Value);
 void vm_free(VM*);
 
 #endif
