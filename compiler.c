@@ -9,8 +9,8 @@
 struct Compiler;
 
 typedef enum {
-    precedence_eof,
-    precedence_none,
+    precedence_eof = -1,
+    precedence_none = 0,
     precedence_interpolation,
     precedence_equality,
     precedence_inequality,
