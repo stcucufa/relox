@@ -100,7 +100,7 @@ static bool compiler_parse_statement(Compiler* compiler) {
             compiler_emit_byte(compiler, op_pop);
         }
     } else {
-        compiler_error(compiler, &compiler->current_token, "expected a statement (print)");
+        compiler_error(compiler, &compiler->current_token, "expected a statement");
     }
     if (!compiler->error) {
         compiler_consume(compiler, token_semicolon, "expected ; to end statement");
@@ -117,14 +117,13 @@ static void compiler_emit_bytes(Compiler* compiler, uint8_t x, uint8_t y) {
     chunk_add_byte(compiler->chunk, y, compiler->lexer->line);
 }
 
-static uint8_t compiler_emit_constant(Compiler* compiler, Value value) {
+static void compiler_emit_constant(Compiler* compiler, Value value) {
     compiler_emit_byte(compiler, op_constant);
     uint8_t n = (uint8_t)chunk_add_constant(compiler->chunk, &compiler->constants, value);
     compiler_emit_byte(compiler, n);
-    return n;
 }
 
-static uint8_t compiler_string_constant(Compiler* compiler, Token* token) {
+static uint8_t compiler_add_string(Compiler* compiler, Token* token) {
     size_t offset = token->type == token_identifier ? 0 : 1;
     size_t trim = token->type == token_identifier ? 0 :
         (token->type == token_string_prefix || token->type == token_string_infix ? 3 : 2);
@@ -132,7 +131,12 @@ static uint8_t compiler_string_constant(Compiler* compiler, Token* token) {
 #ifdef DEBUG
     fputs("\n", stderr);
 #endif
-    return compiler_emit_constant(compiler, vm_add_object(compiler->chunk->vm, string));
+    string = vm_add_object(compiler->chunk->vm, string);
+    return (uint8_t)chunk_add_constant(compiler->chunk, &compiler->constants, string);
+}
+
+static void compiler_string_constant(Compiler* compiler, Token* token) {
+    compiler_emit_bytes(compiler, op_constant, compiler_add_string(compiler, token));
 }
 
 static void compiler_string_interpolation(Compiler* compiler) {
@@ -158,7 +162,7 @@ static void statement_print(Compiler* compiler) {
 static void statement_var(Compiler* compiler) {
     compiler_consume(compiler, token_identifier, "expected variable name (identifier)");
     if (!compiler->error) {
-        uint8_t n = compiler_string_constant(compiler, &compiler->previous_token);
+        uint8_t n = compiler_add_string(compiler, &compiler->previous_token);
         if (compiler_match(compiler, token_equal)) {
             compiler_parse_expression(compiler, precedence_none);
         } else {
@@ -175,16 +179,16 @@ static void nud_group(Compiler* compiler) {
 }
 
 static void nud_string(Compiler* compiler) {
-    (void)compiler_string_constant(compiler, &compiler->previous_token);
+    compiler_string_constant(compiler, &compiler->previous_token);
 }
 
 static void nud_string_prefix(Compiler* compiler) {
-    (void)compiler_string_constant(compiler, &compiler->previous_token);
+    compiler_string_constant(compiler, &compiler->previous_token);
     compiler_string_interpolation(compiler);
 }
 
 static void led_string_suffix(Compiler* compiler) {
-    (void)compiler_string_constant(compiler, &compiler->previous_token);
+    compiler_string_constant(compiler, &compiler->previous_token);
     compiler_emit_byte(compiler, op_multiply);
     if (compiler->previous_token.type == token_string_infix) {
         compiler_string_interpolation(compiler);
@@ -192,8 +196,13 @@ static void led_string_suffix(Compiler* compiler) {
 }
 
 static void nud_identifier(Compiler* compiler) {
-    uint8_t n = compiler_string_constant(compiler, &compiler->previous_token);
-    compiler_emit_bytes(compiler, op_get_global, n);
+    uint8_t n = compiler_add_string(compiler, &compiler->previous_token);
+    if (compiler_match(compiler, token_equal)) {
+        compiler_parse_expression(compiler, precedence_none);
+        compiler_emit_bytes(compiler, op_set_global, n);
+    } else {
+        compiler_emit_bytes(compiler, op_get_global, n);
+    }
 }
 
 static void nud_number(Compiler* compiler) {
@@ -207,7 +216,7 @@ static void nud_number(Compiler* compiler) {
     } else if (value == 1.0) {
         compiler_emit_byte(compiler, op_one);
     } else {
-        (void)compiler_emit_constant(compiler, VALUE_FROM_NUMBER(value));
+        compiler_emit_constant(compiler, VALUE_FROM_NUMBER(value));
     }
 }
 
@@ -324,7 +333,7 @@ bool compile_chunk(const char* source, Chunk* chunk) {
     compiler_advance(&compiler);
     do {
         compiler_parse_statement(&compiler);
-    } while (!compiler_match(&compiler, token_eof));
+    } while (!compiler.error && !compiler_match(&compiler, token_eof));
     compiler_emit_byte(&compiler, op_return);
     hamt_free(&compiler.constants);
     return !compiler.error;

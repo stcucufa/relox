@@ -72,6 +72,7 @@ char const*const opcodes[opcode_count] = {
     [op_pop] = "pop",
     [op_define_global] = "define/global",
     [op_get_global] = "get/global",
+    [op_set_global] = "set/global",
     [op_return] = "return",
     [op_nop] = "nop",
 };
@@ -113,7 +114,8 @@ void chunk_debug(Chunk* chunk, const char* name) {
                 break;
             case op_constant:
             case op_define_global:
-            case op_get_global: {
+            case op_get_global:
+            case op_set_global: {
                 uint8_t arg = chunk->bytes.items[i];
                 fprintf(stderr, "%02x  %s ", arg, opcodes[opcode]);
                 value_printf(stderr, chunk->values.items[arg]);
@@ -121,7 +123,7 @@ void chunk_debug(Chunk* chunk, const char* name) {
                 i += 1;
                 k += 1;
                 break;
-             }
+            }
             default:
                 fprintf(stderr, "???\n");
         }
@@ -279,7 +281,23 @@ Result vm_run(VM* vm, const char* source) {
             case op_quote: POKE(0, value_stringify(PEEK(0))); break;
             case op_pop: POP(); break;
             case op_define_global: hamt_set(&chunk.vm->globals, CONSTANT(), POP()); break;
-            case op_get_global: PUSH(hamt_get(&chunk.vm->globals, CONSTANT())); break;
+            case op_get_global: {
+                Value name = CONSTANT();
+                Value value = hamt_get(&chunk.vm->globals, name);
+                if (VALUE_IS_NONE(value)) {
+                    return runtime_error(vm, "undefined var \"%s\"", VALUE_TO_CSTRING(name));
+                }
+                PUSH(value);
+                break;
+            }
+            case op_set_global: {
+                Value name = CONSTANT();
+                if (VALUE_IS_NONE(hamt_get(&chunk.vm->globals, name))) {
+                    return runtime_error(vm, "undefined var \"%s\"", VALUE_TO_CSTRING(name));
+                }
+                hamt_set(&chunk.vm->globals, name, PEEK(0));
+                break;
+            }
             case op_print:
                 value_print(POP());
                 puts("");
