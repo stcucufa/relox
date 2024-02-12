@@ -179,9 +179,9 @@ void hamt_debug_node(HAMTNode* node) {
         if (VALUE_IS_HAMT_NODE(child_node->key)) {
             hamt_debug_node(child_node);
         } else {
-            value_printf(stderr, child_node->key);
+            value_printf(stderr, child_node->key, true);
             fputs(": ", stderr);
-            value_printf(stderr, child_node->content.value);
+            value_printf(stderr, child_node->content.value, true);
             fputs(", ", stderr);
         }
     }

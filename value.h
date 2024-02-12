@@ -13,11 +13,6 @@ typedef union {
     char as_bytes[8];
 } Value;
 
-#define QNAN 0x7ffc000000000000
-#define NONE (QNAN | 0x0001000000000000)
-#define HAMT_NODE (QNAN | 0x0002000000000000)
-#define OBJECT_MASK 0x0000fffffffffff8
-
 enum {
     tag_nan = 0,
     tag_nil = 1,
@@ -28,6 +23,12 @@ enum {
     tag_mask = 7,
 };
 
+#define QNAN 0x7ffc000000000000
+#define NONE (QNAN | 0x0001000000000000)
+#define HAMT_NODE (QNAN | 0x0002000000000000)
+#define EPSILON (QNAN | tag_string)
+#define OBJECT_MASK 0x0000fffffffffff8
+
 #define VALUE_EQUAL(v, w) (v.as_int == w.as_int)
 
 #define VALUE_NIL (Value){ .as_int = QNAN | tag_nil }
@@ -35,6 +36,7 @@ enum {
 #define VALUE_TRUE (Value){ .as_int = QNAN | tag_true }
 #define VALUE_NONE (Value){ .as_int = NONE }
 #define VALUE_HAMT_NODE (Value){ .as_int = HAMT_NODE }
+#define VALUE_EPSILON (Value){ .as_int = EPSILON }
 #define VALUE_FROM_STRING(x) (Value){ .as_int = (uintptr_t)(x) | QNAN | tag_string }
 #define VALUE_FROM_NUMBER(x) (Value){ .as_double = (x) }
 #define VALUE_FROM_INT(x) (Value){ .as_double = (double)(x) }
@@ -47,6 +49,7 @@ enum {
 #define VALUE_IS_BOOLEAN(v) (((v).as_int & 6) == 2)
 #define VALUE_IS_FALSE(v) (VALUE_TAG(v) == tag_false)
 #define VALUE_IS_TRUE(v) (VALUE_TAG(v) == tag_true)
+#define VALUE_IS_EPSILON(v) ((v).as_int == EPSILON)
 #define VALUE_IS_STRING(v) (VALUE_TAG(v) == tag_string)
 #define VALUE_IS_NUMBER(v) (((v).as_int & QNAN) != QNAN)
 
@@ -56,9 +59,10 @@ enum {
 #define VALUE_TO_HAMT_NODE_BITMAP(v) ((uint32_t)(v).as_int)
 
 void value_print(Value);
-void value_printf(FILE*, Value);
-bool value_equal(Value, Value);
+void value_printf(FILE*, Value, bool);
 Value value_stringify(Value);
+Value value_concatenate_strings(Value, Value);
+Value value_string_exponent(Value, double);
 uint32_t value_hash(Value);
 void value_free_object(Value);
 

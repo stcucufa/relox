@@ -51,6 +51,7 @@ char const*const opcodes[opcode_count] = {
     [op_zero] = "zero",
     [op_one] = "one",
     [op_infinity] = "infinity",
+    [op_epsilon] = "epsilon",
     [op_constant] = "constant",
     [op_negate] = "negate",
     [op_add] = "add",
@@ -86,36 +87,10 @@ void chunk_debug(Chunk* chunk, const char* name) {
         i += 1;
         k += 1;
         switch (opcode) {
-            case op_nil:
-            case op_zero:
-            case op_one:
-            case op_infinity:
-            case op_negate:
-            case op_add:
-            case op_subtract:
-            case op_multiply:
-            case op_divide:
-            case op_exponent:
-            case op_false:
-            case op_true:
-            case op_not:
-            case op_eq:
-            case op_ne:
-            case op_gt:
-            case op_ge:
-            case op_lt:
-            case op_le:
-            case op_quote:
-            case op_print:
-            case op_pop:
-            case op_return:
-            case op_nop:
-                fprintf(stderr, "    %s\n", opcodes[opcode]);
-                break;
             case op_constant: {
                 uint8_t arg = chunk->bytes.items[i];
                 fprintf(stderr, "%02x  %s ", arg, opcodes[opcode]);
-                value_printf(stderr, chunk->values.items[arg]);
+                value_printf(stderr, chunk->values.items[arg], true);
                 fputc('\n', stderr);
                 i += 1;
                 k += 1;
@@ -126,14 +101,15 @@ void chunk_debug(Chunk* chunk, const char* name) {
             case op_set_global: {
                 uint8_t arg = chunk->bytes.items[i];
                 fprintf(stderr, "%02x  %s ", arg, opcodes[opcode]);
-                value_printf(stderr, chunk->vm->symbol_names.items[arg]);
+                value_printf(stderr, chunk->vm->symbol_names.items[arg], true);
                 fputc('\n', stderr);
                 i += 1;
                 k += 1;
                 break;
             }
             default:
-                fprintf(stderr, "???\n");
+                fprintf(stderr, "    %s\n", opcodes[opcode]);
+                break;
         }
         if (k == chunk->line_numbers.items[j + 1]) {
             j += 2;
@@ -159,10 +135,15 @@ static Result runtime_error(VM* vm, const char* format, ...) {
 
 Value vm_add_object(VM* vm, Value v) {
     if (VALUE_IS_STRING(v)) {
+        if (VALUE_IS_EPSILON(v)) {
+            return v;
+        }
         String* string = VALUE_TO_STRING(v);
         Value interned = hamt_get_string(&vm->strings, string);
         if (VALUE_IS_STRING(interned)) {
-            free(string);
+            if (!VALUE_EQUAL(v, interned)) {
+                free(string);
+            }
             return interned;
         }
         hamt_set(&vm->strings, v, v);
@@ -244,6 +225,7 @@ Result vm_run(VM* vm, const char* source) {
             case op_zero: PUSH(VALUE_FROM_NUMBER(0)); break;
             case op_one: PUSH(VALUE_FROM_NUMBER(1)); break;
             case op_infinity: PUSH(VALUE_FROM_NUMBER(INFINITY)); break;
+            case op_epsilon: PUSH(VALUE_EPSILON); break;
             case op_constant: PUSH(CONSTANT()); break;
             case op_negate:
                 if (!VALUE_IS_NUMBER(PEEK(0))) {
@@ -256,9 +238,7 @@ Result vm_run(VM* vm, const char* source) {
             case op_multiply: {
                 if (VALUE_IS_STRING(PEEK(0)) && VALUE_IS_STRING(PEEK(1))) {
                     Value v = POP();
-                    Value string = VALUE_FROM_STRING(
-                        string_concatenate(VALUE_TO_STRING(PEEK(0)), VALUE_TO_STRING(v))
-                    );
+                    Value string = value_concatenate_strings(PEEK(0), v);
                     vm_add_object(vm, string);
                     POKE(0, string);
                 } else {
@@ -276,7 +256,7 @@ Result vm_run(VM* vm, const char* source) {
                 if (VALUE_IS_NUMBER(base)) {
                     POKE(0, VALUE_FROM_NUMBER(pow(base.as_double, exponent)));
                 } else if (VALUE_IS_STRING(base)) {
-                    POKE(0, VALUE_FROM_STRING(string_exponent(VALUE_TO_STRING(base), exponent)));
+                    POKE(0, value_string_exponent(base, exponent));
                 } else {
                     return runtime_error(vm, "Base of exponent is not a number or a string.");
                 }
@@ -289,12 +269,12 @@ Result vm_run(VM* vm, const char* source) {
                 break;
             case op_eq: {
                 Value v = POP();
-                POKE(0, value_equal(PEEK(0), v) ? VALUE_TRUE : VALUE_FALSE);
+                POKE(0, VALUE_EQUAL(PEEK(0), v) ? VALUE_TRUE : VALUE_FALSE);
                 break;
             }
             case op_ne: {
                 Value v = POP();
-                POKE(0, value_equal(PEEK(0), v) ? VALUE_FALSE : VALUE_TRUE);
+                POKE(0, VALUE_EQUAL(PEEK(0), v) ? VALUE_FALSE : VALUE_TRUE);
                 break;
             }
             case op_gt: BINARY_OP_BOOLEAN(>); break;
@@ -333,7 +313,7 @@ Result vm_run(VM* vm, const char* source) {
         fprintf(stderr, "%s {", opcodes[opcode]);
         for (Value* sp = vm->stack; sp != vm->sp; ++sp) {
             fputc(' ', stderr);
-            value_printf(stderr, *sp);
+            value_printf(stderr, *sp, true);
         }
         fprintf(stderr, " }\n");
 #endif
@@ -341,7 +321,7 @@ Result vm_run(VM* vm, const char* source) {
 
 #ifdef DEBUG
     fprintf(stderr, "^^^ ");
-    value_printf(stderr, *vm->stack);
+    value_printf(stderr, *vm->stack, true);
     fputs("\n", stderr);
 #endif
 
