@@ -82,6 +82,14 @@ void value_array_push(ValueArray* array, Value v) {
     array->count += 1;
 }
 
+Value value_array_pop(ValueArray* array) {
+    if (array->count == 0) {
+        return VALUE_NONE;
+    }
+    array->count -= 1;
+    return array->items[array->count];
+}
+
 void value_array_free(ValueArray* array) {
 #ifdef DEBUG
     fprintf(stderr, "--- value_array_free() free %p (count: %zu, size: %zu).\n",
