@@ -59,7 +59,7 @@ enum {
 #define VALUE_TO_HAMT_NODE_BITMAP(v) ((uint32_t)(v).as_int)
 
 void value_print(Value);
-void value_printf(FILE*, Value);
+void value_printf(FILE*, Value, bool);
 Value value_stringify(Value);
 Value value_concatenate_strings(Value, Value);
 Value value_string_exponent(Value, double);

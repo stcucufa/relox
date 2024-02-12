@@ -90,7 +90,7 @@ void chunk_debug(Chunk* chunk, const char* name) {
             case op_constant: {
                 uint8_t arg = chunk->bytes.items[i];
                 fprintf(stderr, "%02x  %s ", arg, opcodes[opcode]);
-                value_printf(stderr, chunk->values.items[arg]);
+                value_printf(stderr, chunk->values.items[arg], true);
                 fputc('\n', stderr);
                 i += 1;
                 k += 1;
@@ -101,7 +101,7 @@ void chunk_debug(Chunk* chunk, const char* name) {
             case op_set_global: {
                 uint8_t arg = chunk->bytes.items[i];
                 fprintf(stderr, "%02x  %s ", arg, opcodes[opcode]);
-                value_printf(stderr, chunk->vm->symbol_names.items[arg]);
+                value_printf(stderr, chunk->vm->symbol_names.items[arg], true);
                 fputc('\n', stderr);
                 i += 1;
                 k += 1;
@@ -313,7 +313,7 @@ Result vm_run(VM* vm, const char* source) {
         fprintf(stderr, "%s {", opcodes[opcode]);
         for (Value* sp = vm->stack; sp != vm->sp; ++sp) {
             fputc(' ', stderr);
-            value_printf(stderr, *sp);
+            value_printf(stderr, *sp, true);
         }
         fprintf(stderr, " }\n");
 #endif
@@ -321,7 +321,7 @@ Result vm_run(VM* vm, const char* source) {
 
 #ifdef DEBUG
     fprintf(stderr, "^^^ ");
-    value_printf(stderr, *vm->stack);
+    value_printf(stderr, *vm->stack, true);
     fputs("\n", stderr);
 #endif
 

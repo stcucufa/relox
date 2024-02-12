@@ -6,10 +6,10 @@
 #include "value.h"
 
 void value_print(Value v) {
-    value_printf(stdout, v);
+    value_printf(stdout, v, false);
 }
 
-void value_printf(FILE* stream, Value v) {
+void value_printf(FILE* stream, Value v, bool debug) {
     if (VALUE_IS_NUMBER(v)) {
         if (v.as_double == INFINITY) {
             fputs("∞", stream);
@@ -23,7 +23,13 @@ void value_printf(FILE* stream, Value v) {
             case tag_nil: fprintf(stream, "nil"); break;
             case tag_false: fprintf(stream, "false"); break;
             case tag_true: fprintf(stream, "true"); break;
-            case tag_string: if (!VALUE_IS_EPSILON(v)) fputs(VALUE_TO_CSTRING(v), stream); break;
+            case tag_string:
+                if (debug) {
+                    fputs(VALUE_IS_EPSILON(v) ? "ε" : VALUE_TO_CSTRING(v), stream);
+                } else if (!VALUE_IS_EPSILON(v)) {
+                    fputs(VALUE_TO_CSTRING(v), stream);
+                }
+                break;
             default: fprintf(stream, "???");
         }
     }
@@ -58,7 +64,8 @@ Value value_concatenate_strings(Value x, Value y) {
 
 Value value_string_exponent(Value base, double x) {
     size_t y = (size_t)round(x > 0 ? x : 0);
-    return y == 0 ? VALUE_EPSILON : VALUE_FROM_STRING(string_exponent(VALUE_TO_STRING(base), y));
+    return VALUE_IS_EPSILON(base) ? base :
+        (y == 0 ? VALUE_EPSILON : VALUE_FROM_STRING(string_exponent(VALUE_TO_STRING(base), y)));
 }
 
 uint32_t value_hash(Value v) {
