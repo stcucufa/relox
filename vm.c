@@ -68,6 +68,7 @@ char const*const opcodes[opcode_count] = {
     [op_ge] = "ge",
     [op_lt] = "lt",
     [op_le] = "le",
+    [op_bars] = "bars",
     [op_quote] = "quote",
     [op_print] = "print",
     [op_pop] = "pop",
@@ -281,6 +282,17 @@ Result vm_run(VM* vm, const char* source) {
             case op_ge: BINARY_OP_BOOLEAN(>=); break;
             case op_lt: BINARY_OP_BOOLEAN(<); break;
             case op_le: BINARY_OP_BOOLEAN(<=); break;
+            case op_bars: {
+                Value v = PEEK(0);
+                if (VALUE_IS_STRING(v)) {
+                    POKE(0, VALUE_FROM_NUMBER(VALUE_IS_EPSILON(v) ? 0 : (VALUE_TO_STRING(v)->length)));
+                } else if (VALUE_IS_NUMBER(v)) {
+                    POKE(0, VALUE_FROM_NUMBER(fabs(v.as_double)));
+                } else {
+                    return runtime_error(vm, "Bars apply to number or string.");
+                }
+                break;
+            }
             case op_quote: POKE(0, value_stringify(PEEK(0))); break;
             case op_pop: (void)POP(); break;
             case op_define_global: vm->globals.items[BYTE()] = POP(); break;

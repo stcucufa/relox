@@ -20,6 +20,7 @@ typedef enum {
     token_equal,
     token_gt,
     token_open_brace,
+    token_bar,
     token_close_brace,
     token_bang_equal,
     token_star_star,
