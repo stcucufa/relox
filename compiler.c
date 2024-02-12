@@ -9,8 +9,8 @@
 struct Compiler;
 
 typedef enum {
-    precedence_eof,
-    precedence_none,
+    precedence_eof = -1,
+    precedence_none = 0,
     precedence_interpolation,
     precedence_equality,
     precedence_inequality,
@@ -28,6 +28,7 @@ typedef struct {
     Precedence precedence;
 } Rule;
 
+Denotation statements[];
 Rule rules[];
 
 typedef struct Compiler {
@@ -53,8 +54,25 @@ static void compiler_error(Compiler* compiler, Token* token, const char* message
 }
 
 static void compiler_advance(Compiler*);
+static void compiler_emit_byte(Compiler*, uint8_t);
 
-static bool compiler_parse(Compiler* compiler, Precedence precedence) {
+static bool compiler_match(Compiler* compiler, TokenType type) {
+    if (compiler->current_token.type == type) {
+        compiler_advance(compiler);
+        return true;
+    }
+    return false;
+}
+
+static void compiler_consume(Compiler* compiler, TokenType type, const char* message) {
+    if (compiler->current_token.type == type) {
+        compiler_advance(compiler);
+    } else {
+        compiler_error(compiler, &compiler->current_token, message);
+    }
+}
+
+static bool compiler_parse_expression(Compiler* compiler, Precedence precedence) {
     Denotation nud = rules[compiler->current_token.type].nud;
     if (nud) {
         compiler_advance(compiler);
@@ -72,35 +90,62 @@ static bool compiler_parse(Compiler* compiler, Precedence precedence) {
     return !compiler->error;
 }
 
-static void compiler_consume(Compiler* compiler, TokenType type, const char* message) {
-    if (compiler->current_token.type == type) {
+static bool compiler_parse_statement(Compiler* compiler) {
+    Denotation statement = statements[compiler->current_token.type];
+    if (statement) {
         compiler_advance(compiler);
+        statement(compiler);
+    } else if (rules[compiler->current_token.type].nud) {
+        if (compiler_parse_expression(compiler, precedence_none)) {
+            compiler_emit_byte(compiler, op_pop);
+        }
     } else {
-        compiler_error(compiler, &compiler->current_token, message);
+        compiler_error(compiler, &compiler->current_token, "expected a statement");
     }
+    if (!compiler->error) {
+        compiler_consume(compiler, token_semicolon, "expected ; to end statement");
+    }
+    return !compiler->error;
 }
 
 static void compiler_emit_byte(Compiler* compiler, uint8_t byte) {
     chunk_add_byte(compiler->chunk, byte, compiler->lexer->line);
 }
 
+static void compiler_emit_bytes(Compiler* compiler, uint8_t x, uint8_t y) {
+    chunk_add_byte(compiler->chunk, x, compiler->lexer->line);
+    chunk_add_byte(compiler->chunk, y, compiler->lexer->line);
+}
+
 static void compiler_emit_constant(Compiler* compiler, Value value) {
     compiler_emit_byte(compiler, op_constant);
-    compiler_emit_byte(compiler, (uint8_t)chunk_add_constant(compiler->chunk, &compiler->constants, value));
+    uint8_t n = (uint8_t)chunk_add_constant(compiler->chunk, &compiler->constants, value);
+    compiler_emit_byte(compiler, n);
 }
 
 static void compiler_string_constant(Compiler* compiler, Token* token) {
-    Value string = VALUE_FROM_STRING(string_copy(token->start + 1, token->length - (
-        token->type == token_string_prefix || token->type == token_string_infix ? 3 : 2
-    )));
+    size_t offset = 1;
+    size_t trim = token->type == token_string_prefix || token->type == token_string_infix ? 3 : 2;
+    Value string = VALUE_FROM_STRING(string_copy(token->start + offset, token->length - trim));
 #ifdef DEBUG
     fputs("\n", stderr);
 #endif
-    compiler_emit_constant(compiler, vm_add_object(compiler->chunk->vm, string));
+    string = vm_add_object(compiler->chunk->vm, string);
+    uint8_t n = chunk_add_constant(compiler->chunk, &compiler->constants, string);
+    compiler_emit_bytes(compiler, op_constant, n);
+}
+
+static uint8_t compiler_symbol(Compiler* compiler, Token* token) {
+    Value string = VALUE_FROM_STRING(string_copy(token->start, token->length));
+#ifdef DEBUG
+    fputs("\n", stderr);
+#endif
+    uint8_t n = vm_add_global(compiler->chunk->vm, string);
+    return n;
 }
 
 static void compiler_string_interpolation(Compiler* compiler) {
-    if (compiler_parse(compiler, precedence_interpolation)) {
+    if (compiler_parse_expression(compiler, precedence_interpolation)) {
         if (compiler->current_token.type == token_string_infix ||
             compiler->current_token.type == token_string_suffix) {
             compiler_emit_byte(compiler, op_quote);
@@ -111,8 +156,29 @@ static void compiler_string_interpolation(Compiler* compiler) {
     }
 }
 
+static void statement_print(Compiler* compiler) {
+    if (!rules[compiler->current_token.type].nud) {
+        compiler_error(compiler, &compiler->current_token, "expected an expression");
+    } else if (compiler_parse_expression(compiler, precedence_none)) {
+        compiler_emit_byte(compiler, op_print);
+    }
+}
+
+static void statement_var(Compiler* compiler) {
+    compiler_consume(compiler, token_identifier, "expected variable name (identifier)");
+    if (!compiler->error) {
+        uint8_t n = compiler_symbol(compiler, &compiler->previous_token);
+        if (compiler_match(compiler, token_equal)) {
+            compiler_parse_expression(compiler, precedence_none);
+        } else {
+            compiler_emit_byte(compiler, op_nil);
+        }
+        compiler_emit_bytes(compiler, op_define_global, n);
+    }
+}
+
 static void nud_group(Compiler* compiler) {
-    if (compiler_parse(compiler, precedence_none)) {
+    if (compiler_parse_expression(compiler, precedence_none)) {
         compiler_consume(compiler, token_close_paren, "expected `)`");
     }
 }
@@ -131,6 +197,16 @@ static void led_string_suffix(Compiler* compiler) {
     compiler_emit_byte(compiler, op_multiply);
     if (compiler->previous_token.type == token_string_infix) {
         compiler_string_interpolation(compiler);
+    }
+}
+
+static void nud_identifier(Compiler* compiler) {
+    uint8_t n = compiler_symbol(compiler, &compiler->previous_token);
+    if (compiler_match(compiler, token_equal)) {
+        compiler_parse_expression(compiler, precedence_none);
+        compiler_emit_bytes(compiler, op_set_global, n);
+    } else {
+        compiler_emit_bytes(compiler, op_get_global, n);
     }
 }
 
@@ -169,7 +245,7 @@ static void nud_unary_op(Compiler* compiler) {
         case token_minus: op = op_negate; break;
         default: break;
     }
-    if (compiler_parse(compiler, precedence_unary)) {
+    if (compiler_parse_expression(compiler, precedence_unary)) {
         compiler_emit_byte(compiler, op);
     }
 }
@@ -190,7 +266,7 @@ static void led_binary_op(Compiler* compiler) {
         case token_ge: op = op_ge; break;
         default: break;
     }
-    if (compiler_parse(compiler, rules[t].precedence)) {
+    if (compiler_parse_expression(compiler, rules[t].precedence)) {
         compiler_emit_byte(compiler, op);
     }
 }
@@ -202,10 +278,15 @@ static void led_right_op(Compiler* compiler) {
         case token_star_star: op = op_exponent; break;
         default: break;
     }
-    if (compiler_parse(compiler, rules[t].precedence - 1)) {
+    if (compiler_parse_expression(compiler, rules[t].precedence - 1)) {
         compiler_emit_byte(compiler, op);
     }
 }
+
+Denotation statements[] = {
+    [token_print] = statement_print,
+    [token_var] = statement_var,
+};
 
 Rule rules[] = {
     [token_bang] = { nud_unary_op, 0, precedence_none },
@@ -228,6 +309,7 @@ Rule rules[] = {
     [token_string_suffix] = { 0, led_string_suffix, precedence_interpolation },
     [token_star_star] = { 0, led_right_op, precedence_exponentiation },
     [token_infinity] = { nud_number, 0, precedence_none },
+    [token_identifier] = { nud_identifier, 0, precedence_none },
     [token_number] = { nud_number, 0, precedence_none },
     [token_false] = { nud_false, 0, precedence_none },
     [token_nil] = { nud_nil, 0, precedence_none },
@@ -254,12 +336,10 @@ bool compile_chunk(const char* source, Chunk* chunk) {
     compiler.lexer = &lexer;
     compiler.error = false;
     compiler_advance(&compiler);
-    if (compiler_parse(&compiler, precedence_none)) {
-        compiler_consume(&compiler, token_eof, "expected end of input");
-        if (!compiler.error) {
-            compiler_emit_byte(&compiler, op_return);
-        }
-    }
+    do {
+        compiler_parse_statement(&compiler);
+    } while (!compiler.error && !compiler_match(&compiler, token_eof));
+    compiler_emit_byte(&compiler, op_return);
     hamt_free(&compiler.constants);
     return !compiler.error;
 }

@@ -1,10 +1,10 @@
-#include <string.h>
 #include <stdbool.h>
+#include <stdio.h>
+#include <string.h>
 
 #include "lexer.h"
 
 #ifdef DEBUG
-#include <stdio.h>
 
 char const*const tokens[token_count] = {
     [token_begin] = "begin",

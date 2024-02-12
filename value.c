@@ -5,7 +5,11 @@
 
 #include "value.h"
 
-void value_print(FILE* stream, Value v) {
+void value_print(Value v) {
+    value_printf(stdout, v);
+}
+
+void value_printf(FILE* stream, Value v) {
     if (VALUE_IS_NUMBER(v)) {
         if (v.as_double == INFINITY) {
             fputs("∞", stream);

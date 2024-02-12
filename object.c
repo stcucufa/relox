@@ -1,11 +1,8 @@
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "object.h"
-
-#ifdef DEBUG
-#include <stdio.h>
-#endif
 
 uint32_t bytes_hash(char* bytes, size_t length) {
     uint32_t hash = 2166136261u;

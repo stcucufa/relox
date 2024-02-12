@@ -135,7 +135,7 @@ void hamt_set(HAMT* hamt, Value key, Value value) {
         if (!VALUE_IS_HAMT_NODE(node->key)) {
             // This is an entry which needs to be updated if the keys map;
             // otherwise, a new map needs to be inserted instead for both the
-            // previous entry and the new entry.
+            // previous entry and the new entry (see above).
             if (VALUE_EQUAL(node->key, key)) {
                 node->content.value = value;
             } else {
@@ -145,10 +145,9 @@ void hamt_set(HAMT* hamt, Value key, Value value) {
             return;
         }
 
-        // Keep going with the next 5 bits.
+        // Keep going down with the next 5 bits of the hash.
         hash >>= 5;
     }
-    // TODO rehash
 }
 
 // Free a node and its children.
@@ -180,9 +179,9 @@ void hamt_debug_node(HAMTNode* node) {
         if (VALUE_IS_HAMT_NODE(child_node->key)) {
             hamt_debug_node(child_node);
         } else {
-            value_print(stderr, child_node->key);
+            value_printf(stderr, child_node->key);
             fputs(": ", stderr);
-            value_print(stderr, child_node->content.value);
+            value_printf(stderr, child_node->content.value);
             fputs(", ", stderr);
         }
     }
