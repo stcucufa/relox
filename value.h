@@ -25,9 +25,10 @@ enum {
 
 #define QNAN 0x7ffc000000000000
 #define NONE (QNAN | 0x0001000000000000)
-#define HAMT_NODE_BITMAP (QNAN | 0x0002000000000000)
+#define HAMT_NODE (QNAN | 0x0002000000000000)
+#define HAMT_NODE_BITMAP (QNAN | 0x0002ffff00000000)
 #define EPSILON (QNAN | tag_string)
-#define OBJECT_MASK 0x0000fffffffffff8
+#define OBJECT_MASK 0x0003fffffffffff8
 
 #define VALUE_EQUAL(v, w) (v.as_int == w.as_int)
 
@@ -37,6 +38,7 @@ enum {
 #define VALUE_NONE (Value){ .as_int = NONE }
 #define VALUE_HAMT_NODE_BITMAP (Value){ .as_int = HAMT_NODE_BITMAP }
 #define VALUE_EPSILON (Value){ .as_int = EPSILON }
+#define VALUE_FROM_HAMT_NODE(x) (Value){ .as_int = (uintptr_t)(x) | QNAN | HAMT_NODE }
 #define VALUE_FROM_STRING(x) (Value){ .as_int = (uintptr_t)(x) | QNAN | tag_string }
 #define VALUE_FROM_NUMBER(x) (Value){ .as_double = (x) }
 #define VALUE_FROM_INT(x) (Value){ .as_double = (double)(x) }
@@ -44,6 +46,7 @@ enum {
 #define VALUE_TAG(v) ((v).as_int & tag_mask)
 
 #define VALUE_IS_NONE(v) ((v).as_int == NONE)
+#define VALUE_IS_HAMT_NODE(v) (((v).as_int & HAMT_NODE_BITMAP) == HAMT_NODE)
 #define VALUE_IS_HAMT_NODE_BITMAP(v) (((v).as_int & HAMT_NODE_BITMAP) == HAMT_NODE_BITMAP)
 #define VALUE_IS_NIL(v) (VALUE_TAG(v) == tag_nil)
 #define VALUE_IS_BOOLEAN(v) (((v).as_int & 6) == 2)

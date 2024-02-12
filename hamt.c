@@ -1,12 +1,49 @@
+#include <string.h>
+
 #include "hamt.h"
+#include "array.h"
+
+#ifdef DEBUG
+#include <inttypes.h>
+#include <stdio.h>
+#endif
+
+#define VALUE_TO_HAMT_NODE(v) ((HAMTNode*)((v).as_int & 0x0000ffffffffffff))
+
+ValueArray free_nodes[32];
 
 static HAMTNode* hamt_get_node(size_t k) {
     return calloc(sizeof(HAMTNode), k);
+
+    if (free_nodes[k - 1].count > 0) {
+#ifdef DEBUG
+        size_t n = free_nodes[k - 1].count - 1;
+        fprintf(stderr, "=== hamt_get_node(%zu): reuse node 0x%16" PRIx64  " (remaining: %zu)\n",
+            k, free_nodes[k - 1].items[n].as_int, n);
+#endif
+        return VALUE_TO_HAMT_NODE(value_array_pop(&free_nodes[k - 1]));
+    }
+#ifdef DEBUG
+    HAMTNode* node = calloc(sizeof(HAMTNode), k);
+    fprintf(stderr, "+++ hamt_get_node(%zu): new node 0x%16" PRIx64 " (%p)\n",
+        k, VALUE_FROM_HAMT_NODE(node).as_int, (void*)node);
+    return node;
+#else
+    return calloc(sizeof(HAMTNode), k);
+#endif
 }
 
 static void hamt_discard_node(size_t k, HAMTNode* node) {
-    (void)k;
     free(node);
+    return;
+
+    if (k > 0) {
+#ifdef DEBUG
+            fprintf(stderr, "--- hamt_discard_node(%zu): add node 0x%16" PRIx64 " (%p) to previous %zu\n",
+                k, VALUE_FROM_HAMT_NODE(node).as_int, (void*)node, free_nodes[k - 1].count);
+#endif
+        value_array_push(&free_nodes[k - 1], VALUE_FROM_HAMT_NODE(node));
+    }
 }
 
 // Initialize the HAMT.
@@ -123,9 +160,12 @@ void hamt_set(HAMT* hamt, Value key, Value value) {
             // Copy the k values to a new array to keep them in order.
             size_t k = __builtin_popcount(bitmap);
             HAMTNode* children = hamt_get_node(k + 1);
-            for (size_t ii = 0; ii < j; ++ii) {
+            fprintf(stderr, "memcpy [%zu] %zu bytes from %p to %p\n",
+                k, j * sizeof(HAMTNode*), (void*)node->content.children, (void*)children);
+            memcpy(children, node->content.children, j * sizeof(HAMTNode*));
+            /*for (size_t ii = 0; ii < j; ++ii) {
                 children[ii] = node->content.children[ii];
-            }
+            }*/
             // Insert the new entry at the right position.
             children[j] = (HAMTNode){ .key = key, .content = { .value = value } };
             for (size_t ii = j + 1; ii <= k; ++ii) {
@@ -133,6 +173,7 @@ void hamt_set(HAMT* hamt, Value key, Value value) {
             }
             hamt_discard_node(k, node->content.children);
             node->content.children = children;
+            fprintf(stderr, "  replacing children, now %p\n", (void*)node->content.children);
             hamt->count += 1;
             return;
 

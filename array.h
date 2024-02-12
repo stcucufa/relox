@@ -38,6 +38,7 @@ typedef struct {
 
 void value_array_init(ValueArray*);
 void value_array_push(ValueArray*, Value);
+Value value_array_pop(ValueArray*);
 void value_array_free(ValueArray*);
 
 #endif

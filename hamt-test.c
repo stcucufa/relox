@@ -6,6 +6,9 @@
 #include "hamt.h"
 #include "value.h"
 
+#define N 10000
+#define M 1
+
 size_t node_height(HAMTNode* node) {
     size_t h = 0;
     size_t k = __builtin_popcount(VALUE_TO_HAMT_NODE_BITMAP(node->key));
@@ -24,9 +27,9 @@ size_t node_height(HAMTNode* node) {
 int main(int argc, char* argv[argc + 1]) {
     HAMT hamt;
     hamt_init(&hamt);
-    for (size_t i = 0; i < 1e7; ++i) {
+    for (size_t i = 0; i < N; ++i) {
         hamt_set(&hamt, VALUE_FROM_NUMBER(i), VALUE_TRUE);
-        if ((i % 500000) == 0) {
+        if ((i % M) == 0) {
             uint64_t hash = value_hash(VALUE_FROM_NUMBER(i));
             printf("%8zu #0x%016" PRIx64 " =", i, hash);
             for (size_t j = 0; j < HAMT_MAX_HEIGHT; ++j) {
