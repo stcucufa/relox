@@ -14,6 +14,7 @@ typedef enum {
     op_zero,
     op_one,
     op_infinity,
+    op_epsilon,
     op_constant,
     op_negate,
     op_add,

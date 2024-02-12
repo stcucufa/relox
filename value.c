@@ -23,7 +23,7 @@ void value_printf(FILE* stream, Value v) {
             case tag_nil: fprintf(stream, "nil"); break;
             case tag_false: fprintf(stream, "false"); break;
             case tag_true: fprintf(stream, "true"); break;
-            case tag_string: fprintf(stream, "%s", VALUE_TO_CSTRING(v)); break;
+            case tag_string: if (!VALUE_IS_EPSILON(v)) fputs(VALUE_TO_CSTRING(v), stream); break;
             default: fprintf(stream, "???");
         }
     }
@@ -51,19 +51,23 @@ Value value_stringify(Value v) {
     return VALUE_FROM_STRING(string_copy(strings[tag], strlen(strings[tag])));
 }
 
-bool value_equal(Value x, Value y) {
-    if (VALUE_IS_STRING(x) && VALUE_IS_STRING(y)) {
-        return string_equal(VALUE_TO_STRING(x), VALUE_TO_STRING(y));
-    }
-    return x.as_double == y.as_double;
+Value value_concatenate_strings(Value x, Value y) {
+    return VALUE_IS_EPSILON(x) ? y : (VALUE_IS_EPSILON(y) ? x :
+        VALUE_FROM_STRING(string_concatenate(VALUE_TO_STRING(x), VALUE_TO_STRING(y))));
+}
+
+Value value_string_exponent(Value base, double x) {
+    size_t y = (size_t)round(x > 0 ? x : 0);
+    return y == 0 ? VALUE_EPSILON : VALUE_FROM_STRING(string_exponent(VALUE_TO_STRING(base), y));
 }
 
 uint32_t value_hash(Value v) {
-    return VALUE_IS_STRING(v) ? VALUE_TO_STRING(v)->hash : bytes_hash(v.as_bytes, 8);
+    return VALUE_IS_STRING(v) && !VALUE_IS_EPSILON(v) ? VALUE_TO_STRING(v)->hash :
+        bytes_hash(v.as_bytes, 8);
 }
 
 void value_free_object(Value v) {
-    if (VALUE_IS_STRING(v)) {
+    if (VALUE_IS_STRING(v) && !VALUE_IS_EPSILON(v)) {
 #ifdef DEBUG
         fprintf(stderr, "--- value_free_object() string \"%s\"\n", VALUE_TO_CSTRING(v));
 #endif

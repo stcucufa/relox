@@ -40,9 +40,8 @@ String* string_concatenate(String* x, String* y) {
 }
 
 String* string_exponent(String* x, double n) {
-    size_t m = (size_t)round(n > 0 ? n : 0);
-    String* string = string_new(x->length * m);
-    for (size_t i = 0; i < m; ++i) {
+    String* string = string_new(x->length * n);
+    for (size_t i = 0; i < n; ++i) {
         memcpy(string->chars + i * x->length, x->chars, x->length);
     }
     string->chars[string->length] = 0;

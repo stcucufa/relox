@@ -124,9 +124,12 @@ static void compiler_emit_constant(Compiler* compiler, Value value) {
 }
 
 static void compiler_string_constant(Compiler* compiler, Token* token) {
-    size_t offset = 1;
     size_t trim = token->type == token_string_prefix || token->type == token_string_infix ? 3 : 2;
-    Value string = VALUE_FROM_STRING(string_copy(token->start + offset, token->length - trim));
+    if (token->length == trim) {
+        compiler_emit_byte(compiler, op_epsilon);
+        return;
+    }
+    Value string = VALUE_FROM_STRING(string_copy(token->start + 1, token->length - trim));
 #ifdef DEBUG
     fputs("\n", stderr);
 #endif
