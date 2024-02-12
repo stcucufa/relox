@@ -33,10 +33,9 @@ void value_printf(FILE* stream, Value v, bool debug) {
             default: fprintf(stream, "???");
         }
     }
-
-#ifdef DEBUG
-    fprintf(stream, " <0x%" PRIx64 ">", v.as_int);
-#endif
+    if (debug) {
+        fprintf(stream, " <0x%" PRIx64 ">", v.as_int);
+    }
 }
 
 char const*const strings[tag_count] = {
