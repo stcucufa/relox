@@ -63,7 +63,7 @@ void value_printf(FILE*, Value, bool);
 Value value_stringify(Value);
 Value value_concatenate_strings(Value, Value);
 Value value_string_exponent(Value, double);
-uint32_t value_hash(Value);
+uint64_t value_hash(Value);
 void value_free_object(Value);
 
 #endif

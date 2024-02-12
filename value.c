@@ -67,7 +67,7 @@ Value value_string_exponent(Value base, double x) {
         (y == 0 ? VALUE_EPSILON : VALUE_FROM_STRING(string_exponent(VALUE_TO_STRING(base), y)));
 }
 
-uint32_t value_hash(Value v) {
+uint64_t value_hash(Value v) {
     return VALUE_IS_STRING(v) && !VALUE_IS_EPSILON(v) ? VALUE_TO_STRING(v)->hash :
         bytes_hash(v.as_bytes, 8);
 }

@@ -4,11 +4,12 @@
 
 #include "object.h"
 
-uint32_t bytes_hash(char* bytes, size_t length) {
-    uint32_t hash = 2166136261u;
+// Cf. https://en.wikipedia.org/wiki/Fowler–Noll–Vo_hash_function
+uint64_t bytes_hash(char* bytes, size_t length) {
+    uint64_t hash = 0xcbf29ce484222325;
     for (size_t i = 0; i < length; ++i) {
         hash ^= (uint8_t)bytes[i];
-        hash *= 16777619;
+        hash *= 0x100000001b3;
     }
     return hash;
 }

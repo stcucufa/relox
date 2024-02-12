@@ -1,9 +1,14 @@
 TARGET =	relox
-OBJECTS =	array.o compiler.o hamt.o lexer.o main.o object.o value.o vm.o
+OBJECTS =	array.o compiler.o hamt.o lexer.o object.o value.o vm.o
 CFLAGS =	-Wall -pedantic -g -DDEBUG
 LDFLAGS =	-lm
 
-$(TARGET):	$(OBJECTS)
+HAMT_TEST =	hamt-test
+
+$(TARGET):	$(OBJECTS) main.o
+	$(CC) $^ $(LDFLAGS) -o $@
+
+$(HAMT_TEST):	$(OBJECTS) $(HAMT_TEST).o
 	$(CC) $^ $(LDFLAGS) -o $@
 
 %.o:	%.c
@@ -11,9 +16,8 @@ $(TARGET):	$(OBJECTS)
 
 .PHONY:	check clean
 
-check:
-	cd hamt && $(MAKE) check
+check:	$(HAMT_TEST)
+	./$(HAMT_TEST) && echo ok
 
 clean:
-	rm -f $(TARGET) $(OBJECTS)
-	cd hamt && $(MAKE) clean
+	rm -f $(TARGET).o $(TARGET) $(HAMT_TEST).o $(HAMT_TEST) $(OBJECTS)

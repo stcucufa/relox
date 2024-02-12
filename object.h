@@ -5,11 +5,11 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-uint32_t bytes_hash(char*, size_t);
+uint64_t bytes_hash(char*, size_t);
 
 typedef struct {
     size_t length;
-    uint32_t hash;
+    uint64_t hash;
     char chars[];
 } String;
 
