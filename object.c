@@ -13,7 +13,7 @@ uint32_t bytes_hash(char* bytes, size_t length) {
     return hash;
 }
 
-static String* string_new(size_t length) {
+String* string_new(size_t length) {
     String* string = malloc(sizeof(String) + length + 1);
     string->length = length;
 #ifdef DEBUG
@@ -50,6 +50,7 @@ String* string_exponent(String* x, double n) {
 }
 
 String* string_from_number(double n) {
+    // TODO ∞
     String* string = string_new((size_t)snprintf(NULL, 0, "%g", n));
     snprintf(string->chars, string->length + 1, "%g", n);
     string->hash = bytes_hash(string->chars, string->length);

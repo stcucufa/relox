@@ -91,7 +91,7 @@ void chunk_debug(Chunk* chunk, const char* name) {
             case op_constant: {
                 uint8_t arg = chunk->bytes.items[i];
                 fprintf(stderr, "%02x  %s ", arg, opcodes[opcode]);
-                value_printf(stderr, chunk->values.items[arg], true);
+                value_print_debug(stderr, chunk->values.items[arg], true);
                 fputc('\n', stderr);
                 i += 1;
                 k += 1;
@@ -102,7 +102,7 @@ void chunk_debug(Chunk* chunk, const char* name) {
             case op_set_global: {
                 uint8_t arg = chunk->bytes.items[i];
                 fprintf(stderr, "%02x  %s ", arg, opcodes[opcode]);
-                value_printf(stderr, chunk->vm->symbol_names.items[arg], true);
+                value_print_debug(stderr, chunk->vm->symbol_names.items[arg], true);
                 fputc('\n', stderr);
                 i += 1;
                 k += 1;
@@ -136,7 +136,7 @@ static Result runtime_error(VM* vm, const char* format, ...) {
 
 Value vm_add_object(VM* vm, Value v) {
     if (VALUE_IS_STRING(v)) {
-        if (VALUE_IS_EPSILON(v)) {
+        if (VALUE_IS_EPSILON(v) || VALUE_IS_SHORT_STRING(v)) {
             return v;
         }
         String* string = VALUE_TO_STRING(v);
@@ -285,7 +285,11 @@ Result vm_run(VM* vm, const char* source) {
             case op_bars: {
                 Value v = PEEK(0);
                 if (VALUE_IS_STRING(v)) {
-                    POKE(0, VALUE_FROM_NUMBER(VALUE_IS_EPSILON(v) ? 0 : (VALUE_TO_STRING(v)->length)));
+                    // FIXME 2L0N || should handle unicode strings (?)
+                    // This is the length in bytes, not unicode characters.
+                    POKE(0, VALUE_FROM_NUMBER(VALUE_IS_EPSILON(v) ? 0 :
+                        VALUE_IS_SHORT_STRING(v) ? VALUE_SHORT_STRING_LENGTH(v) :
+                        (VALUE_TO_STRING(v)->length)));
                 } else if (VALUE_IS_NUMBER(v)) {
                     POKE(0, VALUE_FROM_NUMBER(fabs(v.as_double)));
                 } else {
@@ -325,7 +329,7 @@ Result vm_run(VM* vm, const char* source) {
         fprintf(stderr, "%s {", opcodes[opcode]);
         for (Value* sp = vm->stack; sp != vm->sp; ++sp) {
             fputc(' ', stderr);
-            value_printf(stderr, *sp, true);
+            value_print_debug(stderr, *sp, true);
         }
         fprintf(stderr, " }\n");
 #endif
@@ -333,7 +337,7 @@ Result vm_run(VM* vm, const char* source) {
 
 #ifdef DEBUG
     fprintf(stderr, "^^^ ");
-    value_printf(stderr, *vm->stack, true);
+    value_print_debug(stderr, *vm->stack, true);
     fputs("\n", stderr);
 #endif
 

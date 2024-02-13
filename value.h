@@ -23,43 +23,49 @@ enum {
     tag_mask = 7,
 };
 
-#define QNAN 0x7ffc000000000000
-#define NONE (QNAN | 0x0001000000000000)
-#define HAMT_NODE (QNAN | 0x0002000000000000)
-#define EPSILON (QNAN | tag_string)
+#define VALUE_QNAN_MASK 0x7ffc000000000000
+#define VALUE_NONE_MASK (VALUE_QNAN_MASK | 0x0001000000000000)
+#define HAMT_NODE (VALUE_QNAN_MASK | 0x0002000000000000)
+#define EPSILON (VALUE_QNAN_MASK | tag_string)
 #define OBJECT_MASK 0x0000fffffffffff8
+#define VALUE_SHORT_STRING_MASK 0x8000000000000004
+#define VALUE_SHORT_STRING_LENGTH_MASK 0x38
 
 #define VALUE_EQUAL(v, w) (v.as_int == w.as_int)
 
-#define VALUE_NIL (Value){ .as_int = QNAN | tag_nil }
-#define VALUE_FALSE (Value){ .as_int = QNAN | tag_false }
-#define VALUE_TRUE (Value){ .as_int = QNAN | tag_true }
-#define VALUE_NONE (Value){ .as_int = NONE }
+#define VALUE_NIL (Value){ .as_int = VALUE_QNAN_MASK | tag_nil }
+#define VALUE_FALSE (Value){ .as_int = VALUE_QNAN_MASK | tag_false }
+#define VALUE_TRUE (Value){ .as_int = VALUE_QNAN_MASK | tag_true }
+#define VALUE_NONE (Value){ .as_int = VALUE_NONE_MASK }
 #define VALUE_HAMT_NODE (Value){ .as_int = HAMT_NODE }
 #define VALUE_EPSILON (Value){ .as_int = EPSILON }
-#define VALUE_FROM_STRING(x) (Value){ .as_int = (uintptr_t)(x) | QNAN | tag_string }
+#define VALUE_FROM_STRING(x) (Value){ .as_int = (uintptr_t)(x) | VALUE_QNAN_MASK | tag_string }
 #define VALUE_FROM_NUMBER(x) (Value){ .as_double = (x) }
 #define VALUE_FROM_INT(x) (Value){ .as_double = (double)(x) }
 
 #define VALUE_TAG(v) ((v).as_int & tag_mask)
 
-#define VALUE_IS_NONE(v) ((v).as_int == NONE)
+#define VALUE_IS_NONE(v) ((v).as_int == VALUE_NONE_MASK)
 #define VALUE_IS_HAMT_NODE(v) (((v).as_int & HAMT_NODE) == HAMT_NODE)
 #define VALUE_IS_NIL(v) (VALUE_TAG(v) == tag_nil)
 #define VALUE_IS_BOOLEAN(v) (((v).as_int & 6) == 2)
 #define VALUE_IS_FALSE(v) (VALUE_TAG(v) == tag_false)
 #define VALUE_IS_TRUE(v) (VALUE_TAG(v) == tag_true)
 #define VALUE_IS_EPSILON(v) ((v).as_int == EPSILON)
+#define VALUE_IS_SHORT_STRING(v) (((v).as_int & VALUE_SHORT_STRING_MASK) == VALUE_SHORT_STRING_MASK)
 #define VALUE_IS_STRING(v) (VALUE_TAG(v) == tag_string)
-#define VALUE_IS_NUMBER(v) (((v).as_int & QNAN) != QNAN)
+#define VALUE_IS_NUMBER(v) (((v).as_int & VALUE_QNAN_MASK) != VALUE_QNAN_MASK)
 
 #define VALUE_TO_STRING(v) ((String*)((v).as_int & OBJECT_MASK))
 #define VALUE_TO_CSTRING(v) (VALUE_TO_STRING(v)->chars)
 #define VALUE_TO_INT(v) ((int64_t)(v).as_double)
 #define VALUE_TO_HAMT_NODE_BITMAP(v) ((uint32_t)(v).as_int)
 
+#define VALUE_SHORT_STRING_LENGTH(v) ((size_t)(((v).as_int & VALUE_SHORT_STRING_LENGTH_MASK) >> 3))
+
 void value_print(Value);
-void value_printf(FILE*, Value, bool);
+void value_print_debug(FILE*, Value, bool);
+Value value_copy_string(const char*, size_t);
 Value value_stringify(Value);
 Value value_concatenate_strings(Value, Value);
 Value value_string_exponent(Value, double);

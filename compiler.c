@@ -53,8 +53,24 @@ static void compiler_error(Compiler* compiler, Token* token, const char* message
     compiler->error = true;
 }
 
-static void compiler_advance(Compiler*);
-static void compiler_emit_byte(Compiler*, uint8_t);
+static void compiler_emit_byte(Compiler* compiler, uint8_t byte) {
+    chunk_add_byte(compiler->chunk, byte, compiler->lexer->line);
+}
+
+static void compiler_emit_bytes(Compiler* compiler, uint8_t x, uint8_t y) {
+    chunk_add_byte(compiler->chunk, x, compiler->lexer->line);
+    chunk_add_byte(compiler->chunk, y, compiler->lexer->line);
+}
+
+static void compiler_advance(Compiler* compiler) {
+    compiler->previous_token = compiler->current_token;
+    compiler->current_token = lexer_advance(compiler->lexer);
+
+#ifdef DEBUG
+    fprintf(stderr, ">>> [%zu] Current token: ", compiler->lexer->string_nesting);
+    token_debug(&compiler->current_token);
+#endif
+}
 
 static bool compiler_match(Compiler* compiler, TokenType type) {
     if (compiler->current_token.type == type) {
@@ -108,15 +124,6 @@ static bool compiler_parse_statement(Compiler* compiler) {
     return !compiler->error;
 }
 
-static void compiler_emit_byte(Compiler* compiler, uint8_t byte) {
-    chunk_add_byte(compiler->chunk, byte, compiler->lexer->line);
-}
-
-static void compiler_emit_bytes(Compiler* compiler, uint8_t x, uint8_t y) {
-    chunk_add_byte(compiler->chunk, x, compiler->lexer->line);
-    chunk_add_byte(compiler->chunk, y, compiler->lexer->line);
-}
-
 static void compiler_emit_constant(Compiler* compiler, Value value) {
     compiler_emit_byte(compiler, op_constant);
     uint8_t n = (uint8_t)chunk_add_constant(compiler->chunk, &compiler->constants, value);
@@ -129,7 +136,7 @@ static void compiler_string_constant(Compiler* compiler, Token* token) {
         compiler_emit_byte(compiler, op_epsilon);
         return;
     }
-    Value string = VALUE_FROM_STRING(string_copy(token->start + 1, token->length - trim));
+    Value string = value_copy_string(token->start + 1, token->length - trim);
 #ifdef DEBUG
     fputs("\n", stderr);
 #endif
@@ -139,7 +146,7 @@ static void compiler_string_constant(Compiler* compiler, Token* token) {
 }
 
 static uint8_t compiler_symbol(Compiler* compiler, Token* token) {
-    Value string = VALUE_FROM_STRING(string_copy(token->start, token->length));
+    Value string = value_copy_string(token->start, token->length);
 #ifdef DEBUG
     fputs("\n", stderr);
 #endif
@@ -327,16 +334,6 @@ Rule rules[] = {
     [token_true] = { nud_true, 0, precedence_none },
     [token_eof] = { 0, 0, precedence_eof },
 };
-
-static void compiler_advance(Compiler* compiler) {
-    compiler->previous_token = compiler->current_token;
-    compiler->current_token = lexer_advance(compiler->lexer);
-
-#ifdef DEBUG
-    fprintf(stderr, ">>> [%zu] Current token: ", compiler->lexer->string_nesting);
-    token_debug(&compiler->current_token);
-#endif
-}
 
 bool compile_chunk(const char* source, Chunk* chunk) {
     Compiler compiler;
