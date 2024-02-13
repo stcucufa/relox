@@ -23,6 +23,7 @@ char const*const tokens[token_count] = {
     [token_equal] = "equal",
     [token_gt] = "gt",
     [token_open_brace] = "open brace",
+    [token_bar] = "bar",
     [token_close_brace] = "close brace",
     [token_bang_equal] = "bang + equal",
     [token_le] = "le",
@@ -214,6 +215,7 @@ Token lexer_advance(Lexer* lexer) {
         case '=': return TOKEN(MATCH('=') ? token_equal_equal : token_equal);
         case '>': return TOKEN(MATCH('=') ? token_ge : token_gt);
         case '{': return TOKEN(token_open_brace);
+        case '|': return TOKEN(token_bar);
         case '}': return lexer->string_nesting == 0 ? TOKEN(token_close_brace) : lexer_string(lexer, c);
         case 0xe2: return lexer_infinity(lexer);
     }

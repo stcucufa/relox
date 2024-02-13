@@ -186,6 +186,13 @@ static void nud_group(Compiler* compiler) {
     }
 }
 
+static void nud_bars(Compiler* compiler) {
+    if (compiler_parse_expression(compiler, precedence_none)) {
+        compiler_consume(compiler, token_bar, "expected `|`");
+        compiler_emit_byte(compiler, op_bars);
+    }
+}
+
 static void nud_string(Compiler* compiler) {
     compiler_string_constant(compiler, &compiler->previous_token);
 }
@@ -306,6 +313,7 @@ Rule rules[] = {
     [token_le] = { 0, led_binary_op, precedence_inequality },
     [token_equal_equal] = { 0, led_binary_op, precedence_equality },
     [token_ge] = { 0, led_binary_op, precedence_inequality },
+    [token_bar] = { nud_bars, 0, precedence_none },
     [token_string] = { nud_string, 0, precedence_none },
     [token_string_prefix] = { nud_string_prefix, 0, precedence_none },
     [token_string_infix] = { 0, led_string_suffix, precedence_interpolation },
