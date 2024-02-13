@@ -50,7 +50,6 @@ String* string_exponent(String* x, double n) {
 }
 
 String* string_from_number(double n) {
-    // TODO ∞
     String* string = string_new((size_t)snprintf(NULL, 0, "%g", n));
     snprintf(string->chars, string->length + 1, "%g", n);
     string->hash = bytes_hash(string->chars, string->length);

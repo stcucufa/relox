@@ -48,7 +48,7 @@ void value_print_debug(FILE* stream, Value v, bool debug) {
 static Value value_short_string(const char* chars, size_t length) {
     Value str = (Value){ .as_int = VALUE_QNAN_MASK | VALUE_SHORT_STRING_MASK | (length << 3) };
     for (size_t i = 0, shift = 6; i < length; ++i, shift += 7) {
-        if (chars[i] > 0x7f) {
+        if ((uint8_t)chars[i] > 0x7f) {
             return VALUE_NONE;
         }
         str.as_int |= ((uint64_t)chars[i] << shift);
