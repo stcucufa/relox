@@ -1,12 +1,17 @@
-// Tokens are either a symbol (e.g. Token.Open for an open parenthesis,
+// Tokens are either a symbol (e.g. Token.OpenParen for an open parenthesis,
 // Token.End for the end of input) or a value (boolean, number or string).
 const Token = Object.fromEntries([
-    "Open", "Close",
+    "OpenParen", "CloseParen", "OpenBrace", "CloseBrace",
     "Plus", "Minus", "Star", "StarStar", "Solidus",
     "LE", "LT", "GE", "GT", "Equal", "NE", "Bang",
-    "Bar", "Quote",
+    "Bar", "Quote", "Unquote",
     "End"
 ].map(name => ([name, Symbol.for(name)])));
+
+const Keyword = {
+    true: true,
+    false: false,
+};
 
 // Get the type of a token (itself for a symbol, but "boolean", "number" or
 // "string" for values.
@@ -25,6 +30,9 @@ function* tokenize(input) {
         return false;
     }
 
+    // Keep track of string nesting for interpolation (e.g. "hell${"o" ** 17}")
+    let nesting = 0;
+
     // Skip whitespace and comments and advance to the end of the next token.
     // Return Token.End when the input is exhausted.
     while (input.length > 0) {
@@ -33,8 +41,11 @@ function* tokenize(input) {
         const c = input[0];
         input = input.substring(1);
         switch (c) {
-            case "(": yield Token.Open; break;
-            case ")": yield Token.Close; break;
+
+            // Simple tokens
+            case "(": yield Token.OpenParen; break;
+            case ")": yield Token.CloseParen; break;
+            case "{": yield Token.OpenBrace; break;
             case "+": yield Token.Plus; break;
             case "-": yield Token.Minus; break;
             case "*": yield isNext("*") ? Token.StarStar : Token.Star; break;
@@ -45,28 +56,65 @@ function* tokenize(input) {
             case "!": yield isNext("=") ? Token.NE : Token.Bang; break;
             case "|": yield Token.Bar; break;
             case "'": yield Token.Quote; break;
+            case "∞": yield Infinity; break;
+
+            // String: allow interpolation ("x = ${x}") with nesting
+            // ("hell${"o" ** 17}, world!") where the string is broken up and
+            // stars/quotes are injected into the token stream (so the first
+            // example will produce "x = ", Star, Quote, x, "".
+            case "}": {
+                if (nesting > 0) {
+                    const match = input.match(/^((?:[^"\\\$]|\\.|\$(?!\{))*)("|\$\{)/);
+                    if (match) {
+                        yield Token.Star;
+                        input = input.substring(match[0].length);
+                        yield match[1].replace(/\\(.)/g, "$1");
+                        if (match[2] === "${") {
+                            yield Token.Star;
+                            yield Token.Quote;
+                        } else {
+                            nesting -= 1;
+                        }
+                    } else {
+                        throw Error(`Unfinished string near "${input}".`);
+                    }
+                } else {
+                    // Just a regular close brace
+                    yield Token.CloseBrace;
+                }
+                break;
+            }
             case `"`: {
-                // String
-                const match = input.match(/^([^"]*)"/);
+                const match = fullInput.match(/^"((?:[^"\\\$]|\\.|\$(?!\{))*)("|\$\{)/);
                 if (match) {
-                    input = input.substring(match[0].length);
-                    yield match[1];
+                    input = fullInput.substring(match[0].length);
+                    yield match[1].replace(/\\(.)/g, "$1");
+                    if (match[2] === "${") {
+                        yield Token.Star;
+                        yield Token.Quote;
+                        nesting += 1;
+                    }
                 } else {
                     throw Error(`Unfinished string near "${input}".`);
                 }
                 break;
             }
+
+            // Number (begins with a digit) or identifiers.
             default: {
-                // Number
                 let match = fullInput.match(/^\d+(\.\d+)?/);
                 if (match) {
                     input = fullInput.substring(match[0].length);
                     yield parseFloat(match[0]);
                 } else if (match = fullInput.match(/^\w+/)) {
-                    // Identifier, boolean or keyword
                     input = fullInput.substring(match[0].length);
                     const id = match[0];
-                    yield id === "true" ? true : id === "false" ? false : id;
+                    if (Object.hasOwn(Keyword, id)) {
+                        yield Keyword[id];
+                    } else {
+                        yield Token.Unquote;
+                        yield id;
+                    }
                 } else {
                     throw Error(`Unexpected character at "${input}".`);
                 }
@@ -80,16 +128,17 @@ function* tokenize(input) {
 const id = x => x;
 
 // Attempt to apply an unary operator to a value based on its type. Pass a list
-// of (type, function) pairs and return a function that applies f to x if the
-// type of x matches. If no type matches, throw a runtime error.
+// of (op, type, function) pairs and return a function that applies f to x if
+// the type of x matches. If no type matches, throw a runtime error.
 const unary = (...fs) => function(x) {
-    for (const [tx, f] of fs) {
+    for (const [_, tx, f] of fs) {
         if (typeof x === tx) {
             return f(x);
         }
     }
-    throw Error(`Wrong parameter for op (expected ${ fs.map(([type]) => type).join(" or ") }, got ${
-        typeOf(x) }`);
+    throw Error(`Wrong parameter for op (expected ${
+        fs.map(([op, type]) => `${op} (${type})`).join(" or ")
+    }, got ${x}`);
 };
 
 // Same for binary functions.
@@ -135,17 +184,17 @@ export function evaluate(input) {
     // Null denotation for tokens. Literals return their own value, and unary
     // operators.
     const Nud = {
-        Minus: () => unary(["number", x => -x])(expression(Precedence.unary)),
+        Minus: () => unary(["negation", "number", x => -x])(expression(Precedence.unary)),
         Bang: () => !expression(Precedence.unary),
         Bar() {
             const x = expression();
             advance(Token.Bar);
-            return unary(["number", x => Math.abs(x)], ["string", x => x.length])(x);
+            return unary(["abs", "number", x => Math.abs(x)], ["length", "string", x => x.length])(x);
         },
         Quote: () => expression(Precedence.unary).toString(),
-        Open() {
+        OpenParen() {
             const value = expression();
-            advance(Token.Close);
+            advance(Token.CloseParen);
             return value;
         },
         number: id,
