@@ -178,6 +178,7 @@ export function evaluate(input, env = {}) {
         }
         previousToken = currentToken;
         currentToken = tokens.next().value;
+        return previousToken;
     }
 
     // Null denotation for tokens. Literals return their own value, and unary
@@ -196,9 +197,9 @@ export function evaluate(input, env = {}) {
             advance(Token.CloseParen);
             return value;
         },
+
         Let: env => {
-            advance(Token.Identifier);
-            const name = previousToken[1];
+            const name = advance(Token.Identifier)[1];
             advance(Token.Equal);
             const value = expression(env);
             advance(Token.In);
@@ -206,7 +207,14 @@ export function evaluate(input, env = {}) {
             env[name] = value;
             return expression(env);
         },
-        Identifier: (env, [_, id]) => env[id],
+
+        Identifier(env, [_, id]) {
+            if (!(id in env)) {
+                throw new Error(`Unbound identifier ${id}.`);
+            }
+            return env[id];
+        },
+
         Number: tokenValue,
         String: tokenValue,
         Boolean: tokenValue,

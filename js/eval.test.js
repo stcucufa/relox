@@ -25,10 +25,12 @@ describe("Evaluate expressions", () => {
 
 describe("Variables and environment", () => {
     testAll({
-        "let pi = 3.141592653589793 in 2 * pi": 2 * Math.PI
+        "let pi = 3.141592653589793 in 2 * pi": 2 * Math.PI,
+        "let x = 2 in let y = 3 in x ** y": 2 ** 3,
     });
 });
 
-test("Runtime error", () => {
-    expect(() => evaluate(`"foo" + "bar"`)).toThrow();
+describe("Runtime errors", () => {
+    test("Type error", () => { expect(() => evaluate(`"foo" + "bar"`)).toThrow(); });
+    test("Unbound variable", () => { expect(() => evaluate(`foo + "bar"`)).toThrow(); });
 });
