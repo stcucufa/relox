@@ -13,7 +13,7 @@ uint32_t bytes_hash(char* bytes, size_t length) {
     return hash;
 }
 
-static String* string_new(size_t length) {
+String* string_new(size_t length) {
     String* string = malloc(sizeof(String) + length + 1);
     string->length = length;
 #ifdef DEBUG

@@ -13,6 +13,7 @@ typedef struct {
     char chars[];
 } String;
 
+String* string_new(size_t);
 String* string_copy(const char*, size_t);
 String* string_concatenate(String*, String*);
 String* string_exponent(String*, double);
