@@ -1,6 +1,7 @@
 # Product
 relox
 hamt-test
+hash-test
 
 # Prerequisites
 *.d

@@ -12,9 +12,9 @@ void hamt_init(HAMT* hamt) {
 Value hamt_get(HAMT* hamt, Value key) {
     uint32_t hash = value_hash(key);
     HAMTNode node = hamt->root;
-    for (size_t i = 0; i < 6; ++i) {
+    for (size_t i = 0; i < HAMT_MAX_DEPTH; ++i) {
         // Get 5 bits of hash and make a mask for the position in the bitmap.
-        uint32_t mask = 1 << (hash & 0x1f);
+        uint32_t mask = 1 << (hash & HAMT_HASH_MASK);
         uint32_t bitmap = VALUE_TO_HAMT_NODE_BITMAP(node.key);
         if ((bitmap & mask) == 0) {
             // The bit is 0 so the key is not present in the trie.
@@ -30,7 +30,7 @@ Value hamt_get(HAMT* hamt, Value key) {
             return VALUE_EQUAL(node.key, key) ? node.content.value : VALUE_NONE;
         }
         // Keep going down with the next 5 bits of the hash.
-        hash >>= 5;
+        hash >>= HAMT_BITS_PER_LEVEL;
     }
     return VALUE_NONE;
 }
@@ -41,8 +41,8 @@ Value hamt_get(HAMT* hamt, Value key) {
 Value hamt_get_string(HAMT* hamt, String* string) {
     uint32_t hash = string->hash;
     HAMTNode node = hamt->root;
-    for (size_t i = 0; i < 6; ++i) {
-        uint32_t mask = 1 << (hash & 0x1f);
+    for (size_t i = 0; i < HAMT_MAX_DEPTH; ++i) {
+        uint32_t mask = 1 << (hash & HAMT_HASH_MASK);
         uint32_t bitmap = VALUE_TO_HAMT_NODE_BITMAP(node.key);
         if ((bitmap & mask) == 0) {
             return VALUE_NONE;
@@ -53,7 +53,7 @@ Value hamt_get_string(HAMT* hamt, String* string) {
             return string_equal(VALUE_TO_STRING(node.content.value), string) ?
                 node.content.value : VALUE_NONE;
         }
-        hash >>= 5;
+        hash >>= HAMT_BITS_PER_LEVEL;
     }
     return VALUE_NONE;
 }
@@ -64,13 +64,13 @@ Value hamt_get_string(HAMT* hamt, String* string) {
 // TODO rehash if the full hashes collide.
 static void hamt_resolve_collision(HAMTNode* node, Value key, Value value, Value previous_key,
     Value previous_value, uint32_t hash, size_t i) {
-    if (i >= 6) {
+    if (i >= HAMT_MAX_DEPTH) {
         exit(EXIT_FAILURE);
     }
 
     // Bit positions for new and previous values in the bitmap of the new node.
-    size_t new_mask = 1 << ((hash >> 5) & 0x1f);
-    size_t previous_mask = 1 << (value_hash(previous_key) >> (5 * (i + 1)));
+    size_t new_mask = 1 << ((hash >> HAMT_BITS_PER_LEVEL) & HAMT_HASH_MASK);
+    size_t previous_mask = 1 << (value_hash(previous_key) >> (HAMT_BITS_PER_LEVEL * (i + 1)));
     // Update the bitmap in the node.
     node->key = VALUE_HAMT_NODE;
     node->key.as_int |= new_mask;
@@ -81,7 +81,8 @@ static void hamt_resolve_collision(HAMTNode* node, Value key, Value value, Value
         // between.
         node->content.nodes = malloc(sizeof(HAMTNode));
         hamt_resolve_collision(
-            node->content.nodes, key, value, previous_key, previous_value, hash >> 5, i + 1
+            node->content.nodes, key, value, previous_key, previous_value,
+            hash >> HAMT_BITS_PER_LEVEL, i + 1
         );
     } else {
         // The entries have different positions, so add the two values to the
@@ -103,8 +104,8 @@ static void hamt_resolve_collision(HAMTNode* node, Value key, Value value, Value
 void hamt_set(HAMT* hamt, Value key, Value value) {
     uint32_t hash = value_hash(key);
     HAMTNode* node = &hamt->root;
-    for (size_t i = 0; i < 6; ++i) {
-        uint32_t mask = 1 << (hash & 0x1f);
+    for (size_t i = 0; i < HAMT_MAX_DEPTH; ++i) {
+        uint32_t mask = 1 << (hash & HAMT_HASH_MASK);
         uint32_t bitmap = VALUE_TO_HAMT_NODE_BITMAP(node->key);
         size_t j = __builtin_popcount(bitmap & (mask - 1));
         if ((bitmap & mask) == 0) {
@@ -127,7 +128,6 @@ void hamt_set(HAMT* hamt, Value key, Value value) {
             node->content.nodes = nodes;
             hamt->count += 1;
             return;
-
         }
 
         // The slot is occupied by an entry or a map.
@@ -146,7 +146,7 @@ void hamt_set(HAMT* hamt, Value key, Value value) {
         }
 
         // Keep going down with the next 5 bits of the hash.
-        hash >>= 5;
+        hash >>= HAMT_BITS_PER_LEVEL;
     }
 }
 

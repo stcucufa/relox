@@ -3,6 +3,10 @@
 
 #include "value.h"
 
+#define HAMT_BRANCHING_FACTOR (1 << HAMT_BITS_PER_LEVEL)
+#define HAMT_HASH_MASK (HAMT_BRANCHING_FACTOR - 1)
+#define HAMT_MAX_DEPTH (64 / HAMT_BITS_PER_LEVEL)
+
 // A node in the tree is either an entry (key/value pair) or a map with a
 // bitmap (stored in the key, which is of type VALUE_HAMT_NODE) and a list
 // of 1 to 32 child nodes. The bitmap indicates which slots have a node or
