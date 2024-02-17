@@ -34,6 +34,7 @@ Rule rules[];
 typedef struct Compiler {
     Chunk* chunk;
     HAMT constants;
+    HAMT scope;
     Lexer* lexer;
     Token previous_token;
     Token current_token;
@@ -118,9 +119,6 @@ static bool compiler_parse_statement(Compiler* compiler) {
     } else {
         compiler_error(compiler, &compiler->current_token, "expected a statement");
     }
-    if (!compiler->error) {
-        compiler_consume(compiler, token_semicolon, "expected ; to end statement");
-    }
     return !compiler->error;
 }
 
@@ -166,10 +164,22 @@ static void compiler_string_interpolation(Compiler* compiler) {
     }
 }
 
+static void statement_block(Compiler* compiler) {
+    // TODO enter scope
+    while (!compiler->error && compiler->current_token.type != token_close_brace) {
+        compiler_parse_statement(compiler);
+    }
+    if (!compiler->error) {
+        compiler_consume(compiler, token_close_brace, "expected } to end a block");
+    }
+    // TODO leave scope
+}
+
 static void statement_print(Compiler* compiler) {
     if (!rules[compiler->current_token.type].nud) {
         compiler_error(compiler, &compiler->current_token, "expected an expression");
     } else if (compiler_parse_expression(compiler, precedence_none)) {
+        compiler_consume(compiler, token_semicolon, "expected ; to end print statement");
         compiler_emit_byte(compiler, op_print);
     }
 }
@@ -183,6 +193,7 @@ static void statement_var(Compiler* compiler) {
         } else {
             compiler_emit_byte(compiler, op_nil);
         }
+        compiler_consume(compiler, token_semicolon, "expected ; to end var statement");
         compiler_emit_bytes(compiler, op_define_global, n);
     }
 }
@@ -301,6 +312,7 @@ static void led_right_op(Compiler* compiler) {
 }
 
 Denotation statements[] = {
+    [token_open_brace] = statement_block,
     [token_print] = statement_print,
     [token_var] = statement_var,
 };
@@ -341,6 +353,7 @@ bool compile_chunk(const char* source, Chunk* chunk) {
     lexer_init(&lexer, source);
     compiler.chunk = chunk;
     hamt_init(&compiler.constants);
+    hamt_init(&compiler.scope);
     compiler.lexer = &lexer;
     compiler.error = false;
     compiler_advance(&compiler);

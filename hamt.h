@@ -25,6 +25,7 @@ typedef struct {
 void hamt_init(HAMT*);
 Value hamt_get(HAMT*, Value);
 Value hamt_get_string(HAMT*, String*);
+Value hamt_find_key(HAMT*, Value);
 void hamt_set(HAMT*, Value, Value);
 void hamt_free(HAMT*);
 

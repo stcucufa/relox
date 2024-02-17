@@ -88,6 +88,26 @@ Value value_stringify(Value v) {
     return VALUE_FROM_STRING(string_copy(strings[tag], strlen(strings[tag])));
 }
 
+char* value_to_cstring(Value v) {
+    static char short_string[7];
+
+    if (VALUE_IS_EPSILON(v)) {
+        short_string[0] = 0;
+        return &short_string[0];
+    }
+
+    if (VALUE_IS_SHORT_STRING(v)) {
+        size_t n = VALUE_SHORT_STRING_LENGTH(v);
+        for (size_t i = 0, shift = 6; i < n; ++i, shift += 7) {
+            short_string[i] = (v.as_int >> shift) & 0x7f;
+        }
+        short_string[n] = 0;
+        return &short_string[0];
+    }
+
+    return VALUE_TO_CSTRING(v);
+}
+
 static Value value_concatenate_short_short(Value x, Value y) {
     size_t m = VALUE_SHORT_STRING_LENGTH(x);
     size_t n = VALUE_SHORT_STRING_LENGTH(y);

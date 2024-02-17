@@ -68,11 +68,10 @@ typedef struct VM {
     Value stack[STACK_SIZE];
     Value* sp;
     uint8_t* ip;
-    HAMT symbols;
+    HAMT global_scope;
     HAMT strings;
     ValueArray objects;
     ValueArray globals;
-    ValueArray symbol_names;
 } VM;
 
 typedef enum {
