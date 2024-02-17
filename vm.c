@@ -114,10 +114,7 @@ void chunk_debug(Chunk* chunk, const char* name) {
             case op_get_local:
             case op_set_local: {
                 uint8_t arg = chunk->bytes.items[i];
-                fprintf(stderr, "%02x  %s ", arg, opcodes[opcode]);
-                //value_print_debug(stderr,
-                //    hamt_find_key(chunk->scope, VALUE_FROM_INT(arg)), true);
-                fputc('\n', stderr);
+                fprintf(stderr, "%02x  %s %d\n", arg, opcodes[opcode], arg);
                 i += 1;
                 k += 1;
                 break;
