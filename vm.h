@@ -38,6 +38,8 @@ typedef enum {
     op_define_global,
     op_get_global,
     op_set_global,
+    op_get_local,
+    op_set_local,
     op_return,
     op_nop,
     opcode_count

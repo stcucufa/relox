@@ -75,6 +75,8 @@ char const*const opcodes[opcode_count] = {
     [op_define_global] = "define/global",
     [op_get_global] = "get/global",
     [op_set_global] = "set/global",
+    [op_get_local] = "get/local",
+    [op_set_local] = "set/local",
     [op_return] = "return",
     [op_nop] = "nop",
 };
@@ -104,6 +106,17 @@ void chunk_debug(Chunk* chunk, const char* name) {
                 fprintf(stderr, "%02x  %s ", arg, opcodes[opcode]);
                 value_print_debug(stderr,
                     hamt_find_key(&chunk->vm->global_scope, VALUE_FROM_INT(arg)), true);
+                fputc('\n', stderr);
+                i += 1;
+                k += 1;
+                break;
+            }
+            case op_get_local:
+            case op_set_local: {
+                uint8_t arg = chunk->bytes.items[i];
+                fprintf(stderr, "%02x  %s ", arg, opcodes[opcode]);
+                //value_print_debug(stderr,
+                //    hamt_find_key(chunk->scope, VALUE_FROM_INT(arg)), true);
                 fputc('\n', stderr);
                 i += 1;
                 k += 1;
@@ -155,7 +168,6 @@ Value vm_add_object(VM* vm, Value v) {
 }
 
 uint8_t vm_add_global(VM* vm, Value v) {
-    v = vm_add_object(vm, v);
     Value j = hamt_get(&vm->global_scope, v);
     if (!VALUE_IS_NONE(j)) {
         return (uint8_t)VALUE_TO_INT(j);
@@ -318,6 +330,8 @@ Result vm_run(VM* vm, const char* source) {
                 vm->globals.items[n] = PEEK(0);
                 break;
             }
+            case op_get_local: PUSH(vm->stack[BYTE()]); break;
+            case op_set_local: vm->stack[BYTE()] = POP(); break;
             case op_print:
                 value_print(POP());
                 puts("");
