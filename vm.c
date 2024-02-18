@@ -104,8 +104,7 @@ void chunk_debug(Chunk* chunk, const char* name) {
             case op_set_global: {
                 uint8_t arg = chunk->bytes.items[i];
                 fprintf(stderr, "%02x  %s ", arg, opcodes[opcode]);
-                value_print_debug(stderr,
-                    hamt_find_key(&chunk->vm->global_scope, VALUE_FROM_INT(arg)), true);
+                value_print_debug(stderr, hamt_get(&chunk->vm->global_scope, VALUE_FROM_INT(arg)), true);
                 fputc('\n', stderr);
                 i += 1;
                 k += 1;
@@ -164,10 +163,10 @@ Value vm_add_object(VM* vm, Value v) {
     return v;
 }
 
-Var* vm_var_new(Value name, size_t index, bool mutable, bool global) {
+Var* vm_var_new(size_t index, bool mutable, bool global) {
     Var* var = malloc(sizeof(Var));
-    var->name = name;
     var->index = (uint8_t)index;
+    var->initialized = false;
     var->mutable = mutable;
     var->global = global;
     return var;
@@ -179,8 +178,9 @@ Var* vm_add_global(VM* vm, Value v, bool mutable) {
         return (Var*)VALUE_TO_POINTER(w);
     }
 
-    Var* var = vm_var_new(v, vm->globals.count, mutable, true);
+    Var* var = vm_var_new(vm->globals.count, mutable, true);
     hamt_set(&vm->global_scope, v, VALUE_FROM_POINTER(var));
+    hamt_set(&vm->global_scope, VALUE_FROM_NUMBER(var->index), v);
     value_array_push(&vm->globals, VALUE_NONE);
     return var;
 }
@@ -323,7 +323,7 @@ Result vm_run(VM* vm, const char* source) {
                 Value value = vm->globals.items[n];
                 if (VALUE_IS_NONE(value)) {
                     return runtime_error(vm, "undefined var \"%s\"",
-                        value_to_cstring(hamt_find_key(&vm->global_scope, VALUE_FROM_INT(n))));
+                        value_to_cstring(hamt_get(&vm->global_scope, VALUE_FROM_INT(n))));
                 }
                 PUSH(value);
                 break;
@@ -332,13 +332,13 @@ Result vm_run(VM* vm, const char* source) {
                 uint8_t n = BYTE();
                 if (VALUE_IS_NONE(vm->globals.items[n])) {
                     return runtime_error(vm, "undefined var \"%s\"",
-                        value_to_cstring(hamt_find_key(&vm->global_scope, VALUE_FROM_INT(n))));
+                        value_to_cstring(hamt_get(&vm->global_scope, VALUE_FROM_INT(n))));
                 }
                 vm->globals.items[n] = PEEK(0);
                 break;
             }
             case op_get_local: PUSH(vm->stack[BYTE()]); break;
-            case op_set_local: vm->stack[BYTE()] = POP(); break;
+            case op_set_local: vm->stack[BYTE()] = PEEK(0); break;
             case op_print:
                 value_print(POP());
                 puts("");

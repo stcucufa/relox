@@ -67,8 +67,8 @@ void chunk_debug(Chunk*, const char*);
 #define STACK_SIZE 256
 
 typedef struct {
-    Value name;
     uint8_t index;
+    bool initialized;
     bool mutable;
     bool global;
 } Var;
@@ -92,7 +92,7 @@ typedef enum {
 
 Result vm_run(VM*, const char*);
 Value vm_add_object(VM*, Value);
-Var* vm_var_new(Value, size_t, bool, bool);
+Var* vm_var_new(size_t, bool, bool);
 Var* vm_add_global(VM*, Value, bool);
 void vm_free(VM*);
 
