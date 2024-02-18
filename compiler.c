@@ -144,27 +144,34 @@ static void compiler_string_constant(Compiler* compiler, Token* token) {
     compiler_emit_bytes(compiler, op_constant, n);
 }
 
-static uint8_t compiler_declare_var(Compiler* compiler, Token* token) {
+static Var* compiler_declare_var(Compiler* compiler, Token* token) {
     Value string = value_copy_string(token->start, token->length);
 #ifdef DEBUG
     fputs("\n", stderr);
 #endif
     Value v = vm_add_object(compiler->chunk->vm, string);
+    bool mutable = token->type == token_var;
     if (compiler->scope == &compiler->chunk->vm->global_scope) {
-        return vm_add_global(compiler->chunk->vm, v);
+        return vm_add_global(compiler->chunk->vm, v, mutable);
     }
 
     if (!VALUE_IS_NONE(hamt_get(compiler->scope, v))) {
-        compiler_error(compiler, &compiler->current_token, "var is already defined");
+        compiler_error(compiler, token, "var is already defined");
         return 0;
     }
-    size_t i = compiler->locals_count;
+
+    if (compiler->locals_count == UINT8_MAX - 1) {
+        compiler_error(compiler, token, "too many vars!");
+        return 0;
+    }
+
+    Var* var = vm_var_new(v, compiler->locals_count, mutable, false);
     compiler->locals_count += 1;
-    hamt_set(compiler->scope, v, VALUE_FROM_INT(i));
-    return (uint8_t)i;
+    hamt_set(compiler->scope, v, VALUE_FROM_POINTER(var));
+    return var;
 }
 
-static bool compiler_find_var(Compiler* compiler, Token* token, uint8_t* n) {
+static Var* compiler_find_var(Compiler* compiler, Token* token) {
     Value string = value_copy_string(token->start, token->length);
 #ifdef DEBUG
     fputs("\n", stderr);
@@ -172,24 +179,21 @@ static bool compiler_find_var(Compiler* compiler, Token* token, uint8_t* n) {
     Value v = vm_add_object(compiler->chunk->vm, string);
     HAMT* global_scope = &compiler->chunk->vm->global_scope;
     if (compiler->scope == global_scope) {
-        *n = vm_add_global(compiler->chunk->vm, v);
-        return true;
+        return vm_add_global(compiler->chunk->vm, v, token->type == token_let);
     }
     for (HAMT* scope = compiler->scope; scope != global_scope;
         scope = VALUE_TO_HAMT(hamt_get(scope, VALUE_EPSILON))) {
-        Value i = hamt_get(scope, v);
-        if (!VALUE_IS_NONE(i)) {
-            *n = VALUE_TO_INT(i);
-            return false;
+        Value w = hamt_get(scope, v);
+        if (!VALUE_IS_NONE(w)) {
+            return (Var*)VALUE_TO_POINTER(w);
         }
     }
-    Value i = hamt_get(global_scope, v);
-    if (VALUE_IS_NONE(i)) {
-        compiler_error(compiler, &compiler->current_token, "var is not defined");
-        return false;
+    Value w = hamt_get(global_scope, v);
+    if (VALUE_IS_NONE(w)) {
+        compiler_error(compiler, token, "var is not defined");
+        return 0;
     }
-    *n = VALUE_TO_INT(i);
-    return true;
+    return (Var*)VALUE_TO_POINTER(w);
 }
 
 static void compiler_string_interpolation(Compiler* compiler) {
@@ -210,7 +214,7 @@ static void statement_block(Compiler* compiler) {
 
     HAMT scope;
     hamt_init(&scope);
-    hamt_set(&scope, VALUE_EPSILON, VALUE_FROM_HAMT(parent_scope));
+    hamt_set(&scope, VALUE_EPSILON, VALUE_FROM_POINTER(parent_scope));
     compiler->scope = &scope;
 
     while (!compiler->error && compiler->current_token.type != token_close_brace) {
@@ -236,10 +240,10 @@ static void statement_print(Compiler* compiler) {
     }
 }
 
-static void statement_var(Compiler* compiler) {
+static void statement_declaration(Compiler* compiler) {
     compiler_consume(compiler, token_identifier, "expected variable name (identifier)");
     if (!compiler->error) {
-        uint8_t n = compiler_declare_var(compiler, &compiler->previous_token);
+        Var* var = compiler_declare_var(compiler, &compiler->previous_token);
         if (compiler_match(compiler, token_equal)) {
             compiler_parse_expression(compiler, precedence_none);
         } else {
@@ -247,7 +251,7 @@ static void statement_var(Compiler* compiler) {
         }
         compiler_consume(compiler, token_semicolon, "expected ; to end var statement");
         if (compiler->scope == &compiler->chunk->vm->global_scope) {
-            compiler_emit_bytes(compiler, op_define_global, n);
+            compiler_emit_bytes(compiler, op_define_global, var->index);
         }
     }
 }
@@ -283,13 +287,12 @@ static void led_string_suffix(Compiler* compiler) {
 }
 
 static void nud_identifier(Compiler* compiler) {
-    uint8_t n;
-    bool is_global = compiler_find_var(compiler, &compiler->previous_token, &n);
+    Var* var = compiler_find_var(compiler, &compiler->previous_token);
     if (compiler_match(compiler, token_equal)) {
         compiler_parse_expression(compiler, precedence_none);
-        compiler_emit_bytes(compiler, is_global ? op_set_global : op_set_local, n);
+        compiler_emit_bytes(compiler, var->global ? op_set_global : op_set_local, var->index);
     } else {
-        compiler_emit_bytes(compiler, is_global ? op_get_global : op_get_local, n);
+        compiler_emit_bytes(compiler, var->global ? op_get_global : op_get_local, var->index);
     }
 }
 
@@ -368,8 +371,9 @@ static void led_right_op(Compiler* compiler) {
 
 Denotation statements[] = {
     [token_open_brace] = statement_block,
+    [token_let] = statement_declaration,
     [token_print] = statement_print,
-    [token_var] = statement_var,
+    [token_var] = statement_declaration,
 };
 
 Rule rules[] = {

@@ -1,6 +1,7 @@
 #ifndef __VM_H__
 #define __VM_H__
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
 
@@ -65,6 +66,13 @@ void chunk_debug(Chunk*, const char*);
 
 #define STACK_SIZE 256
 
+typedef struct {
+    Value name;
+    uint8_t index;
+    bool mutable;
+    bool global;
+} Var;
+
 typedef struct VM {
     Chunk* chunk;
     Value stack[STACK_SIZE];
@@ -84,7 +92,8 @@ typedef enum {
 
 Result vm_run(VM*, const char*);
 Value vm_add_object(VM*, Value);
-uint8_t vm_add_global(VM*, Value);
+Var* vm_var_new(Value, size_t, bool, bool);
+Var* vm_add_global(VM*, Value, bool);
 void vm_free(VM*);
 
 #endif

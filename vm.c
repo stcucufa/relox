@@ -164,15 +164,25 @@ Value vm_add_object(VM* vm, Value v) {
     return v;
 }
 
-uint8_t vm_add_global(VM* vm, Value v) {
-    Value j = hamt_get(&vm->global_scope, v);
-    if (!VALUE_IS_NONE(j)) {
-        return (uint8_t)VALUE_TO_INT(j);
+Var* vm_var_new(Value name, size_t index, bool mutable, bool global) {
+    Var* var = malloc(sizeof(Var));
+    var->name = name;
+    var->index = (uint8_t)index;
+    var->mutable = mutable;
+    var->global = global;
+    return var;
+}
+
+Var* vm_add_global(VM* vm, Value v, bool mutable) {
+    Value w = hamt_get(&vm->global_scope, v);
+    if (!VALUE_IS_NONE(w)) {
+        return (Var*)VALUE_TO_POINTER(w);
     }
-    size_t i = vm->globals.count;
-    hamt_set(&vm->global_scope, v, VALUE_FROM_INT(i));
+
+    Var* var = vm_var_new(v, vm->globals.count, mutable, true);
+    hamt_set(&vm->global_scope, v, VALUE_FROM_POINTER(var));
     value_array_push(&vm->globals, VALUE_NONE);
-    return (uint8_t)i;
+    return var;
 }
 
 Result vm_run(VM* vm, const char* source) {

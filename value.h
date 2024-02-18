@@ -19,7 +19,7 @@ enum {
     tag_false = 2,
     tag_true = 3,
     tag_string = 4,
-    tag_hamt = 5,
+    tag_pointer = 5,
     tag_count = 6,
     tag_mask = 7,
 };
@@ -41,7 +41,7 @@ enum {
 #define VALUE_HAMT_NODE (Value){ .as_int = VALUE_HAMT_NODE_MASK }
 #define VALUE_EPSILON (Value){ .as_int = VALUE_EPSILON_MASK }
 #define VALUE_FROM_STRING(x) (Value){ .as_int = (uintptr_t)(x) | VALUE_QNAN_MASK | tag_string }
-#define VALUE_FROM_HAMT(x) (Value){ .as_int = (uintptr_t)(x) | VALUE_QNAN_MASK | tag_hamt }
+#define VALUE_FROM_POINTER(x) (Value){ .as_int = (uintptr_t)(x) | VALUE_QNAN_MASK | tag_pointer }
 #define VALUE_FROM_NUMBER(x) (Value){ .as_double = (x) }
 #define VALUE_FROM_INT(x) (Value){ .as_double = (double)(x) }
 
@@ -56,12 +56,13 @@ enum {
 #define VALUE_IS_EPSILON(v) ((v).as_int == VALUE_EPSILON_MASK)
 #define VALUE_IS_SHORT_STRING(v) (((v).as_int & VALUE_SHORT_STRING_MASK) == VALUE_SHORT_STRING_MASK)
 #define VALUE_IS_STRING(v) (VALUE_TAG(v) == tag_string)
-#define VALUE_IS_HAMT(v) (VALUE_TAG(v) == tag_hamt)
+#define VALUE_IS_POINTER(v) (VALUE_TAG(v) == tag_pointer)
 #define VALUE_IS_NUMBER(v) (((v).as_int & VALUE_QNAN_MASK) != VALUE_QNAN_MASK)
 
 #define VALUE_TO_STRING(v) ((String*)((v).as_int & VALUE_OBJECT_MASK))
 #define VALUE_TO_CSTRING(v) (VALUE_TO_STRING(v)->chars)
 #define VALUE_TO_HAMT(v) ((HAMT*)((v).as_int & VALUE_OBJECT_MASK))
+#define VALUE_TO_POINTER(v) ((v).as_int & VALUE_OBJECT_MASK)
 #define VALUE_TO_INT(v) ((int64_t)(v).as_double)
 #define VALUE_TO_HAMT_NODE_BITMAP(v) ((uint32_t)(v).as_int)
 

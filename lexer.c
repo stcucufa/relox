@@ -42,6 +42,7 @@ char const*const tokens[token_count] = {
     [token_for] = "for",
     [token_fun] = "fun",
     [token_if] = "if",
+    [token_let] = "let",
     [token_nil] = "nil",
     [token_or] = "or",
     [token_print] = "print",
@@ -168,6 +169,7 @@ static TokenType lexer_identifier_or_keyword(Lexer* lexer) {
             }
             break;
         case 'i': return KEYWORD("if", 2, token_if);
+        case 'l': return KEYWORD("let", 3, token_let);
         case 'n': return KEYWORD("nil", 3, token_nil);
         case 'o': return KEYWORD("or", 2, token_or);
         case 'p': return KEYWORD("print", 5, token_print);
