@@ -1,6 +1,7 @@
 #ifndef __VM_H__
 #define __VM_H__
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
 
@@ -38,6 +39,8 @@ typedef enum {
     op_define_global,
     op_get_global,
     op_set_global,
+    op_get_local,
+    op_set_local,
     op_return,
     op_nop,
     opcode_count
@@ -63,16 +66,22 @@ void chunk_debug(Chunk*, const char*);
 
 #define STACK_SIZE 256
 
+typedef struct {
+    uint8_t index;
+    bool initialized;
+    bool mutable;
+    bool global;
+} Var;
+
 typedef struct VM {
     Chunk* chunk;
     Value stack[STACK_SIZE];
     Value* sp;
     uint8_t* ip;
-    HAMT symbols;
+    HAMT global_scope;
     HAMT strings;
     ValueArray objects;
     ValueArray globals;
-    ValueArray symbol_names;
 } VM;
 
 typedef enum {
@@ -83,7 +92,8 @@ typedef enum {
 
 Result vm_run(VM*, const char*);
 Value vm_add_object(VM*, Value);
-uint8_t vm_add_global(VM*, Value);
+Var* vm_var_new(VM*, size_t, bool, bool);
+Var* vm_add_global(VM*, Value, bool);
 void vm_free(VM*);
 
 #endif

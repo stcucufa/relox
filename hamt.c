@@ -58,6 +58,24 @@ Value hamt_get_string(HAMT* hamt, String* string) {
     return VALUE_NONE;
 }
 
+// Reverse lookup: find a key for a value.
+static Value hamt_find_key_in_node(HAMTNode* node, Value value) {
+    size_t k = __builtin_popcount(VALUE_TO_HAMT_NODE_BITMAP(node->key));
+    for (size_t i = 0; i < k; ++i) {
+        HAMTNode* child_node = &node->content.nodes[i];
+        if (VALUE_IS_HAMT_NODE(child_node->key)) {
+            return hamt_find_key_in_node(child_node, value);
+        } else if (VALUE_EQUAL(value, child_node->content.value)) {
+            return child_node->key;
+        }
+    }
+    return VALUE_NONE;
+}
+
+Value hamt_find_key(HAMT* hamt, Value value) {
+    return hamt_find_key_in_node(&hamt->root, value);
+}
+
 // When inserting a new value, it may collide with a previously inserted entry.
 // Replace that entry with a new map by getting the next 5 bits of both hashes,
 // and keep going while there are collisions.

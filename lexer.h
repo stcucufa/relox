@@ -41,6 +41,7 @@ typedef enum {
     token_for,
     token_fun,
     token_if,
+    token_let,
     token_nil,
     token_or,
     token_print,
