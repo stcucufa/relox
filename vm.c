@@ -163,12 +163,16 @@ Value vm_add_object(VM* vm, Value v) {
     return v;
 }
 
-Var* vm_var_new(size_t index, bool mutable, bool global) {
+Var* vm_var_new(VM* vm, size_t index, bool mutable, bool global) {
     Var* var = malloc(sizeof(Var));
     var->index = (uint8_t)index;
     var->initialized = false;
     var->mutable = mutable;
     var->global = global;
+#ifdef DEBUG
+    fprintf(stderr, "+++ vm_var_new(): new var %p\n", (void*)var);
+#endif
+    value_array_push(&vm->objects, VALUE_FROM_POINTER(var));
     return var;
 }
 
@@ -178,7 +182,7 @@ Var* vm_add_global(VM* vm, Value v, bool mutable) {
         return (Var*)VALUE_TO_POINTER(w);
     }
 
-    Var* var = vm_var_new(vm->globals.count, mutable, true);
+    Var* var = vm_var_new(vm, vm->globals.count, mutable, true);
     hamt_set(&vm->global_scope, v, VALUE_FROM_POINTER(var));
     hamt_set(&vm->global_scope, VALUE_FROM_NUMBER(var->index), v);
     value_array_push(&vm->globals, VALUE_NONE);

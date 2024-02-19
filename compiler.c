@@ -159,7 +159,7 @@ static Var* compiler_declare_var(Compiler* compiler, Token* token, bool mutable)
         return 0;
     }
 
-    Var* var = vm_var_new(compiler->locals_count, mutable, false);
+    Var* var = vm_var_new(compiler->chunk->vm, compiler->locals_count, mutable, false);
     compiler->locals_count += 1;
     hamt_set(compiler->scope, v, VALUE_FROM_POINTER(var));
     hamt_set(compiler->scope, VALUE_FROM_INT(var->index), v);

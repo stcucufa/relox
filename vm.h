@@ -92,7 +92,7 @@ typedef enum {
 
 Result vm_run(VM*, const char*);
 Value vm_add_object(VM*, Value);
-Var* vm_var_new(size_t, bool, bool);
+Var* vm_var_new(VM*, size_t, bool, bool);
 Var* vm_add_global(VM*, Value, bool);
 void vm_free(VM*);
 

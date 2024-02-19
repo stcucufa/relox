@@ -231,5 +231,10 @@ void value_free_object(Value v) {
         fprintf(stderr, "--- value_free_object() string \"%s\"\n", VALUE_TO_CSTRING(v));
 #endif
         free(VALUE_TO_STRING(v));
+    } else if (VALUE_IS_POINTER(v)) {
+#ifdef DEBUG
+        fprintf(stderr, "--- value_free_object() pointer %p\n", (void*)VALUE_TO_POINTER(v));
+#endif
+        free((void*)VALUE_TO_POINTER(v));
     }
 }
