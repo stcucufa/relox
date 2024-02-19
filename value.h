@@ -78,5 +78,4 @@ Value value_string_exponent(Value, double);
 uint32_t value_hash(Value);
 void value_free_object(Value);
 
-
 #endif
