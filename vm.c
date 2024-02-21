@@ -77,6 +77,7 @@ char const*const opcodes[opcode_count] = {
     [op_set_global] = "set/global",
     [op_get_local] = "get/local",
     [op_set_local] = "set/local",
+    [op_jump] = "jump",
     [op_jump_false] = "jump/false",
     [op_return] = "return",
     [op_nop] = "nop",
@@ -119,6 +120,7 @@ void chunk_debug(Chunk* chunk, const char* name) {
                 k += 1;
                 break;
             }
+            case op_jump:
             case op_jump_false: {
                 uint8_t hi = chunk->bytes.items[i];
                 uint8_t lo = chunk->bytes.items[i + 1];
@@ -359,6 +361,7 @@ Result vm_run(VM* vm, const char* source) {
             case op_get_local: PUSH(vm->stack[BYTE()]); break;
             case op_set_local: vm->stack[BYTE()] = PEEK(0); break;
 
+            case op_jump: vm->ip += WORD(); break;
             case op_jump_false: {
                 ptrdiff_t offset = WORD();
                 Value p = PEEK(0);

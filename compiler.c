@@ -238,10 +238,20 @@ static void statement_block(Compiler* compiler) {
 
 static void statement_if(Compiler* compiler) {
     compiler_parse_expression(compiler, precedence_none);
-    size_t jump_over_consequent = compiler_jump(compiler, op_jump_false);
-    compiler_consume(compiler, token_open_brace, "expected { after if and predicate");
-    statement_block(compiler);
-    compiler_patch_jump(compiler, jump_over_consequent);
+    if (!compiler->error) {
+        size_t jump_over_consequent = compiler_jump(compiler, op_jump_false);
+        compiler_consume(compiler, token_open_brace, "expected { after if and predicate");
+        statement_block(compiler);
+        if (!compiler->error && compiler_match(compiler, token_else)) {
+            compiler_consume(compiler, token_open_brace, "expected { after else");
+            size_t jump_over_alternate = compiler_jump(compiler, op_jump);
+            compiler_patch_jump(compiler, jump_over_consequent);
+            statement_block(compiler);
+            compiler_patch_jump(compiler, jump_over_alternate);
+        } else {
+            compiler_patch_jump(compiler, jump_over_consequent);
+        }
+    }
 }
 
 static void statement_print(Compiler* compiler) {
