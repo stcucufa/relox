@@ -41,6 +41,7 @@ typedef enum {
     op_set_global,
     op_get_local,
     op_set_local,
+    op_jump_false,
     op_return,
     op_nop,
     opcode_count

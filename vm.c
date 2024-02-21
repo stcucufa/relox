@@ -77,6 +77,7 @@ char const*const opcodes[opcode_count] = {
     [op_set_global] = "set/global",
     [op_get_local] = "get/local",
     [op_set_local] = "set/local",
+    [op_jump_false] = "jump/false",
     [op_return] = "return",
     [op_nop] = "nop",
 };
@@ -92,7 +93,7 @@ void chunk_debug(Chunk* chunk, const char* name) {
         switch (opcode) {
             case op_constant: {
                 uint8_t arg = chunk->bytes.items[i];
-                fprintf(stderr, "%02x  %s ", arg, opcodes[opcode]);
+                fprintf(stderr, "%02x     %s ", arg, opcodes[opcode]);
                 value_print_debug(stderr, chunk->values.items[arg], true);
                 fputc('\n', stderr);
                 i += 1;
@@ -103,7 +104,7 @@ void chunk_debug(Chunk* chunk, const char* name) {
             case op_get_global:
             case op_set_global: {
                 uint8_t arg = chunk->bytes.items[i];
-                fprintf(stderr, "%02x  %s ", arg, opcodes[opcode]);
+                fprintf(stderr, "%02x     %s ", arg, opcodes[opcode]);
                 value_print_debug(stderr, hamt_get(&chunk->vm->global_scope, VALUE_FROM_INT(arg)), true);
                 fputc('\n', stderr);
                 i += 1;
@@ -113,13 +114,21 @@ void chunk_debug(Chunk* chunk, const char* name) {
             case op_get_local:
             case op_set_local: {
                 uint8_t arg = chunk->bytes.items[i];
-                fprintf(stderr, "%02x  %s %d\n", arg, opcodes[opcode], arg);
+                fprintf(stderr, "%02x     %s %d\n", arg, opcodes[opcode], arg);
                 i += 1;
                 k += 1;
                 break;
             }
+            case op_jump_false: {
+                uint8_t hi = chunk->bytes.items[i];
+                uint8_t lo = chunk->bytes.items[i + 1];
+                fprintf(stderr, "%02x %02x  %s %d\n", hi, lo, opcodes[opcode], (int16_t)((hi << 8) | lo));
+                i += 2;
+                k += 1;
+                break;
+            }
             default:
-                fprintf(stderr, "    %s\n", opcodes[opcode]);
+                fprintf(stderr, "       %s\n", opcodes[opcode]);
                 break;
         }
         if (k == chunk->line_numbers.items[j + 1]) {
@@ -211,6 +220,7 @@ Result vm_run(VM* vm, const char* source) {
     vm->sp = vm->stack;
 
 #define BYTE() *vm->ip++
+#define WORD() ((*vm->ip++) << 8 | (*vm->ip++))
 #define CONSTANT() chunk.values.items[BYTE()]
 #define PUSH(x) *vm->sp++ = (x)
 #define POP() (*(--vm->sp))
@@ -320,7 +330,12 @@ Result vm_run(VM* vm, const char* source) {
                 break;
             }
             case op_quote: POKE(0, value_stringify(PEEK(0))); break;
+            case op_print:
+                value_print(POP());
+                puts("");
+                break;
             case op_pop: (void)POP(); break;
+
             case op_define_global: vm->globals.items[BYTE()] = POP(); break;
             case op_get_global: {
                 uint8_t n = BYTE();
@@ -343,10 +358,16 @@ Result vm_run(VM* vm, const char* source) {
             }
             case op_get_local: PUSH(vm->stack[BYTE()]); break;
             case op_set_local: vm->stack[BYTE()] = PEEK(0); break;
-            case op_print:
-                value_print(POP());
-                puts("");
+
+            case op_jump_false: {
+                ptrdiff_t offset = WORD();
+                Value p = PEEK(0);
+                if (VALUE_IS_FALSE(p) || VALUE_IS_EPSILON(p) || p.as_double == 0) {
+                    vm->ip += offset;
+                }
                 break;
+            }
+
             case op_nop: break;
         }
 #ifdef DEBUG
@@ -369,11 +390,14 @@ Result vm_run(VM* vm, const char* source) {
     return result_ok;
 
 #undef BYTE
+#undef WORD
+#undef CONSTANT
 #undef PUSH
 #undef POP
 #undef POKE
 #undef PEEK
-#undef BINARY_OP
+#undef BINARY_OP_NUMBER
+#undef BINARY_OP_BOOLEAN
 }
 
 void vm_free(VM* vm) {

@@ -200,6 +200,19 @@ static void compiler_string_interpolation(Compiler* compiler) {
     }
 }
 
+static size_t compiler_jump(Compiler* compiler, Opcode op) {
+    compiler_emit_byte(compiler, op);
+    compiler_emit_byte(compiler, 0xde);
+    compiler_emit_byte(compiler, 0xad);
+    return compiler->chunk->bytes.count;
+}
+
+static void compiler_patch_jump(Compiler* compiler, size_t dest) {
+    ptrdiff_t offset = (compiler->chunk->bytes.count - dest);
+    compiler->chunk->bytes.items[dest - 2] = (uint8_t)(offset >> 8);
+    compiler->chunk->bytes.items[dest - 1] = (uint8_t)offset;
+}
+
 static void statement_block(Compiler* compiler) {
     HAMT* parent_scope = compiler->scope;
     size_t parent_count = compiler->locals_count;
@@ -221,6 +234,14 @@ static void statement_block(Compiler* compiler) {
     }
     hamt_free(&scope);
     compiler->scope = parent_scope;
+}
+
+static void statement_if(Compiler* compiler) {
+    compiler_parse_expression(compiler, precedence_none);
+    size_t jump_over_consequent = compiler_jump(compiler, op_jump_false);
+    compiler_consume(compiler, token_open_brace, "expected { after if and predicate");
+    statement_block(compiler);
+    compiler_patch_jump(compiler, jump_over_consequent);
 }
 
 static void statement_print(Compiler* compiler) {
@@ -368,6 +389,7 @@ static void led_right_op(Compiler* compiler) {
 }
 
 Denotation statements[] = {
+    [token_if] = statement_if,
     [token_open_brace] = statement_block,
     [token_let] = statement_declaration,
     [token_print] = statement_print,
