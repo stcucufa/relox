@@ -363,9 +363,9 @@ Result vm_run(VM* vm, const char* source) {
             case op_get_local: PUSH(vm->stack[BYTE()]); break;
             case op_set_local: vm->stack[BYTE()] = PEEK(0); break;
 
-            case op_jump: vm->ip += WORD(); break;
+            case op_jump: vm->ip += (int16_t)WORD(); break;
             case op_jump_true: {
-                ptrdiff_t offset = WORD();
+                ptrdiff_t offset = (int16_t)WORD();
                 Value p = PEEK(0);
                 if (!(VALUE_IS_FALSE(p) || VALUE_IS_EPSILON(p) || p.as_double == 0)) {
                     vm->ip += offset;
@@ -373,7 +373,7 @@ Result vm_run(VM* vm, const char* source) {
                 break;
             }
             case op_jump_false: {
-                ptrdiff_t offset = WORD();
+                ptrdiff_t offset = (int16_t)WORD();
                 Value p = PEEK(0);
                 if (VALUE_IS_FALSE(p) || VALUE_IS_EPSILON(p) || p.as_double == 0) {
                     vm->ip += offset;

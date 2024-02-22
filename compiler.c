@@ -258,6 +258,22 @@ static void statement_if(Compiler* compiler) {
     }
 }
 
+static void statement_while(Compiler* compiler) {
+    size_t predicate = compiler->chunk->bytes.count;
+    compiler_parse_expression(compiler, precedence_none);
+    if (!compiler->error) {
+        size_t jump = compiler_jump(compiler, op_jump_false);
+        compiler_emit_byte(compiler, op_pop);
+        compiler_consume(compiler, token_open_brace, "expected { after while predicate");
+        statement_block(compiler);
+        compiler_emit_byte(compiler, op_jump);
+        ptrdiff_t back = predicate - compiler->chunk->bytes.count - 2;
+        compiler_emit_byte(compiler, (uint8_t)(back >> 8));
+        compiler_emit_byte(compiler, (uint8_t)back);
+        compiler_patch_jump(compiler, jump);
+    }
+}
+
 static void statement_print(Compiler* compiler) {
     if (!rules[compiler->current_token.type].nud) {
         compiler_error(compiler, &compiler->current_token, "expected an expression");
@@ -416,6 +432,7 @@ Denotation statements[] = {
     [token_let] = statement_declaration,
     [token_print] = statement_print,
     [token_var] = statement_declaration,
+    [token_while] = statement_while,
 };
 
 Rule rules[] = {
