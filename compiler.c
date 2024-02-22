@@ -269,7 +269,7 @@ static void statement_if(Compiler* compiler) {
 
 // switch <expr> {
 //     case <expr>: <statements>
-//     case <expr>: <statements>
+//     case <expr>: <statements> [fallthrough;]
 //     ...
 //     [default: <statements>]
 // }
@@ -281,7 +281,8 @@ static void statement_switch(Compiler* compiler) {
     ValueArray breaks;
     value_array_init(&breaks);
 
-    size_t skip;
+    size_t skip, fallthrough;
+    bool did_fallthrough = false;
     while (compiler_match(compiler, token_case)) {
         if (breaks.count > 0) {
             compiler_emit_byte(compiler, op_pop);
@@ -292,15 +293,28 @@ static void statement_switch(Compiler* compiler) {
         compiler_emit_byte(compiler, op_eq);
         skip = compiler_stub_jump(compiler, op_jump_false);
         compiler_emit_bytes(compiler, op_pop, op_pop);
+        if (did_fallthrough) {
+            did_fallthrough = false;
+            compiler_patch_jump(compiler, fallthrough);
+        }
         do {
             compiler_parse_statement(compiler);
         } while (!compiler->error &&
             compiler->current_token.type != token_case &&
             compiler->current_token.type != token_default &&
+            compiler->current_token.type != token_fallthrough &&
             compiler->current_token.type != token_close_brace);
-        size_t jump = compiler_stub_jump(compiler, op_jump);
-        value_array_push(&breaks, VALUE_FROM_INT(jump));
+        if (compiler_match(compiler, token_fallthrough)) {
+            compiler_consume(compiler, token_semicolon, "expected ; after fallthrough");
+            did_fallthrough = true;
+        } else {
+            size_t jump = compiler_stub_jump(compiler, op_jump);
+            value_array_push(&breaks, VALUE_FROM_INT(jump));
+        }
         compiler_patch_jump(compiler, skip);
+        if (did_fallthrough) {
+            fallthrough = compiler_stub_jump(compiler, op_jump);
+        }
     }
 
     if (compiler_match(compiler, token_default)) {
@@ -308,9 +322,18 @@ static void statement_switch(Compiler* compiler) {
             compiler_emit_byte(compiler, op_pop);
         }
         compiler_consume(compiler, token_colon, "expected : after default");
+        if (did_fallthrough) {
+            did_fallthrough = false;
+            compiler_patch_jump(compiler, fallthrough);
+        }
         do {
             compiler_parse_statement(compiler);
         } while (!compiler->error && compiler->current_token.type != token_close_brace);
+    }
+
+    if (did_fallthrough) {
+        did_fallthrough = false;
+        compiler_patch_jump(compiler, fallthrough);
     }
 
     for (size_t i = 0; i < breaks.count; ++i) {

@@ -41,6 +41,7 @@ typedef enum {
     token_default,
     token_else,
     token_false,
+    token_fallthrough,
     token_for,
     token_fun,
     token_if,

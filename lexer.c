@@ -42,6 +42,7 @@ char const*const tokens[token_count] = {
     [token_default] = "default",
     [token_else] = "else",
     [token_false] = "false",
+    [token_fallthrough] = "fallthrough",
     [token_for] = "for",
     [token_fun] = "fun",
     [token_if] = "if",
@@ -171,6 +172,9 @@ static TokenType lexer_identifier_or_keyword(Lexer* lexer) {
         case 'd': return KEYWORD("default", 7, token_default);
         case 'e': return KEYWORD("else", 4, token_else);
         case 'f':
+            if (lexer->current - lexer->start == 11) {
+                return KEYWORD("fallthrough", 11, token_fallthrough);
+            }
             switch (lexer->start[1]) {
                 case 'a': return KEYWORD("false", 5, token_false);
                 case 'o': return KEYWORD("for", 3, token_for);
