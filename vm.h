@@ -36,6 +36,7 @@ typedef enum {
     op_quote,
     op_print,
     op_pop,
+    op_dup,
     op_define_global,
     op_get_global,
     op_set_global,

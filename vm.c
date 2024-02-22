@@ -72,6 +72,7 @@ char const*const opcodes[opcode_count] = {
     [op_quote] = "quote",
     [op_print] = "print",
     [op_pop] = "pop",
+    [op_dup] = "dup",
     [op_define_global] = "define/global",
     [op_get_global] = "get/global",
     [op_set_global] = "set/global",
@@ -339,7 +340,13 @@ Result vm_run(VM* vm, const char* source) {
                 value_print(POP());
                 puts("");
                 break;
+
             case op_pop: (void)POP(); break;
+            case op_dup: {
+                Value top = PEEK(0);
+                PUSH(top);
+                break;
+            }
 
             case op_define_global: vm->globals.items[BYTE()] = POP(); break;
             case op_get_global: {

@@ -18,6 +18,7 @@ char const*const tokens[token_count] = {
     [token_minus] = "minus",
     [token_period] = "period",
     [token_slash] = "slash",
+    [token_colon] = "colon",
     [token_semicolon] = "semicolon",
     [token_lt] = "lt",
     [token_equal] = "equal",
@@ -36,6 +37,7 @@ char const*const tokens[token_count] = {
     [token_string_infix] = "string infix",
     [token_string_suffix] = "string suffix",
     [token_and] = "and",
+    [token_case] = "case",
     [token_class] = "class",
     [token_else] = "else",
     [token_false] = "false",
@@ -48,6 +50,7 @@ char const*const tokens[token_count] = {
     [token_print] = "print",
     [token_return] = "return",
     [token_super] = "super",
+    [token_switch] = "switch",
     [token_this] = "this",
     [token_true] = "true",
     [token_var] = "var",
@@ -159,7 +162,11 @@ static TokenType lexer_identifier_or_keyword(Lexer* lexer) {
 
     switch (*lexer->start) {
         case 'a': return KEYWORD("and", 3, token_and);
-        case 'c': return KEYWORD("class", 5, token_class);
+        case 'c':
+            switch (lexer->start[1]) {
+                case 'a': return KEYWORD("case", 4, token_case);
+                case 'l': return KEYWORD("class", 5, token_class);
+            }
         case 'e': return KEYWORD("else", 4, token_else);
         case 'f':
             switch (lexer->start[1]) {
@@ -174,7 +181,12 @@ static TokenType lexer_identifier_or_keyword(Lexer* lexer) {
         case 'o': return KEYWORD("or", 2, token_or);
         case 'p': return KEYWORD("print", 5, token_print);
         case 'r': return KEYWORD("return", 6, token_return);
-        case 's': return KEYWORD("super", 5, token_super);
+        case 's':
+            switch (lexer->start[1]) {
+                case 'u': return KEYWORD("super", 5, token_super);
+                case 'w': return KEYWORD("switch", 6, token_switch);
+            }
+            break;
         case 't':
             switch (lexer->start[1]) {
                 case 'h': return KEYWORD("this", 4, token_this);
@@ -212,6 +224,7 @@ Token lexer_advance(Lexer* lexer) {
         case '-': return TOKEN(token_minus);
         case '.': return TOKEN(token_period);
         case '/': return TOKEN(token_slash);
+        case ':': return TOKEN(token_colon);
         case ';': return TOKEN(token_semicolon);
         case '<': return TOKEN(MATCH('=') ? token_le : token_lt);
         case '=': return TOKEN(MATCH('=') ? token_equal_equal : token_equal);

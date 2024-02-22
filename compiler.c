@@ -267,6 +267,48 @@ static void statement_if(Compiler* compiler) {
     }
 }
 
+// switch <expr> {
+//     case <expr>: <statements>
+//     case <expr>: <statements>
+//     ...
+// }
+static void statement_switch(Compiler* compiler) {
+    compiler_parse_expression(compiler, precedence_none);
+    compiler_consume(compiler, token_open_brace, "expected { after switch expression");
+
+    // Keep track of the break jumps for every case to patch them later.
+    ValueArray breaks;
+    value_array_init(&breaks);
+
+    size_t skip;
+    while (compiler_match(compiler, token_case)) {
+        if (breaks.count > 0) {
+            compiler_emit_byte(compiler, op_pop);
+        }
+        compiler_emit_byte(compiler, op_dup);
+        compiler_parse_expression(compiler, precedence_none);
+        compiler_consume(compiler, token_colon, "expected : after case");
+        compiler_emit_byte(compiler, op_eq);
+        skip = compiler_stub_jump(compiler, op_jump_false);
+        compiler_emit_bytes(compiler, op_pop, op_pop);
+        do {
+            compiler_parse_statement(compiler);
+        } while (!compiler->error &&
+            compiler->current_token.type != token_case &&
+            compiler->current_token.type != token_close_brace);
+        size_t jump = compiler_stub_jump(compiler, op_jump);
+        value_array_push(&breaks, VALUE_FROM_INT(jump));
+        compiler_patch_jump(compiler, skip);
+    }
+
+    for (size_t i = 0; i < breaks.count; ++i) {
+        compiler_patch_jump(compiler, VALUE_TO_INT(breaks.items[i]));
+    }
+    value_array_free(&breaks);
+    compiler_consume(compiler, token_close_brace, "expected } to close switch statement");
+
+}
+
 // while <predicate-expr> <block-statement>
 static void statement_while(Compiler* compiler) {
     size_t predicate = compiler->chunk->bytes.count;
@@ -475,6 +517,7 @@ Denotation statements[] = {
     [token_open_brace] = statement_block,
     [token_print] = statement_print,
     [token_var] = statement_declaration,
+    [token_switch] = statement_switch,
     [token_while] = statement_while,
 };
 
