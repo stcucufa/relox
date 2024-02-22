@@ -12,6 +12,8 @@ typedef enum {
     precedence_eof = -1,
     precedence_none = 0,
     precedence_interpolation,
+    precedence_or,
+    precedence_and,
     precedence_equality,
     precedence_inequality,
     precedence_addition,
@@ -240,12 +242,14 @@ static void statement_if(Compiler* compiler) {
     compiler_parse_expression(compiler, precedence_none);
     if (!compiler->error) {
         size_t jump_over_consequent = compiler_jump(compiler, op_jump_false);
+        compiler_emit_byte(compiler, op_pop);
         compiler_consume(compiler, token_open_brace, "expected { after if and predicate");
         statement_block(compiler);
         if (!compiler->error && compiler_match(compiler, token_else)) {
             compiler_consume(compiler, token_open_brace, "expected { after else");
             size_t jump_over_alternate = compiler_jump(compiler, op_jump);
             compiler_patch_jump(compiler, jump_over_consequent);
+            compiler_emit_byte(compiler, op_pop);
             statement_block(compiler);
             compiler_patch_jump(compiler, jump_over_alternate);
         } else {
@@ -365,6 +369,14 @@ static void nud_unary_op(Compiler* compiler) {
     }
 }
 
+static void led_op_lazy(Compiler* compiler) {
+    TokenType t = compiler->previous_token.type;
+    size_t jump = compiler_jump(compiler, t == token_or ? op_jump_true : op_jump_false);
+    compiler_emit_byte(compiler, op_pop);
+    compiler_parse_expression(compiler, rules[t].precedence);
+    compiler_patch_jump(compiler, jump);
+}
+
 static void led_binary_op(Compiler* compiler) {
     TokenType t = compiler->previous_token.type;
     uint8_t op = op_nop;
@@ -429,7 +441,9 @@ Rule rules[] = {
     [token_star_star] = { 0, led_right_op, precedence_exponentiation },
     [token_infinity] = { nud_number, 0, precedence_none },
     [token_identifier] = { nud_identifier, 0, precedence_none },
+    [token_and] = { 0, led_op_lazy, precedence_and },
     [token_number] = { nud_number, 0, precedence_none },
+    [token_or] = { 0, led_op_lazy, precedence_or },
     [token_false] = { nud_false, 0, precedence_none },
     [token_nil] = { nud_nil, 0, precedence_none },
     [token_true] = { nud_true, 0, precedence_none },

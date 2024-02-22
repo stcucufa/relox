@@ -42,6 +42,7 @@ typedef enum {
     op_get_local,
     op_set_local,
     op_jump,
+    op_jump_true,
     op_jump_false,
     op_return,
     op_nop,
