@@ -38,6 +38,7 @@ typedef enum {
     token_and,
     token_case,
     token_class,
+    token_default,
     token_else,
     token_false,
     token_for,

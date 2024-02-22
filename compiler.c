@@ -271,6 +271,7 @@ static void statement_if(Compiler* compiler) {
 //     case <expr>: <statements>
 //     case <expr>: <statements>
 //     ...
+//     [default: <statements>]
 // }
 static void statement_switch(Compiler* compiler) {
     compiler_parse_expression(compiler, precedence_none);
@@ -295,10 +296,21 @@ static void statement_switch(Compiler* compiler) {
             compiler_parse_statement(compiler);
         } while (!compiler->error &&
             compiler->current_token.type != token_case &&
+            compiler->current_token.type != token_default &&
             compiler->current_token.type != token_close_brace);
         size_t jump = compiler_stub_jump(compiler, op_jump);
         value_array_push(&breaks, VALUE_FROM_INT(jump));
         compiler_patch_jump(compiler, skip);
+    }
+
+    if (compiler_match(compiler, token_default)) {
+        if (breaks.count > 0) {
+            compiler_emit_byte(compiler, op_pop);
+        }
+        compiler_consume(compiler, token_colon, "expected : after default");
+        do {
+            compiler_parse_statement(compiler);
+        } while (!compiler->error && compiler->current_token.type != token_close_brace);
     }
 
     for (size_t i = 0; i < breaks.count; ++i) {
@@ -306,7 +318,6 @@ static void statement_switch(Compiler* compiler) {
     }
     value_array_free(&breaks);
     compiler_consume(compiler, token_close_brace, "expected } to close switch statement");
-
 }
 
 // while <predicate-expr> <block-statement>

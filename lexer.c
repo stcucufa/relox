@@ -39,6 +39,7 @@ char const*const tokens[token_count] = {
     [token_and] = "and",
     [token_case] = "case",
     [token_class] = "class",
+    [token_default] = "default",
     [token_else] = "else",
     [token_false] = "false",
     [token_for] = "for",
@@ -167,6 +168,7 @@ static TokenType lexer_identifier_or_keyword(Lexer* lexer) {
                 case 'a': return KEYWORD("case", 4, token_case);
                 case 'l': return KEYWORD("class", 5, token_class);
             }
+        case 'd': return KEYWORD("default", 7, token_default);
         case 'e': return KEYWORD("else", 4, token_else);
         case 'f':
             switch (lexer->start[1]) {
