@@ -66,6 +66,19 @@ static void compiler_emit_bytes(Compiler* compiler, uint8_t x, uint8_t y) {
     chunk_add_byte(compiler->chunk, y, compiler->lexer->line);
 }
 
+static void compiler_emit_constant(Compiler* compiler, Value value) {
+    compiler_emit_byte(compiler, op_constant);
+    uint8_t n = (uint8_t)chunk_add_constant(compiler->chunk, &compiler->constants, value);
+    compiler_emit_byte(compiler, n);
+}
+
+static void compiler_emit_jump(Compiler* compiler, size_t to) {
+    compiler_emit_byte(compiler, op_jump);
+    ptrdiff_t offset = to - compiler->chunk->bytes.count - 2;
+    compiler_emit_byte(compiler, (uint8_t)(offset >> 8));
+    compiler_emit_byte(compiler, (uint8_t)offset);
+}
+
 static void compiler_advance(Compiler* compiler) {
     compiler->previous_token = compiler->current_token;
     compiler->current_token = lexer_advance(compiler->lexer);
@@ -124,12 +137,6 @@ static bool compiler_parse_statement(Compiler* compiler) {
         compiler_error(compiler, &compiler->current_token, "expected a statement");
     }
     return !compiler->error;
-}
-
-static void compiler_emit_constant(Compiler* compiler, Value value) {
-    compiler_emit_byte(compiler, op_constant);
-    uint8_t n = (uint8_t)chunk_add_constant(compiler->chunk, &compiler->constants, value);
-    compiler_emit_byte(compiler, n);
 }
 
 static void compiler_string_constant(Compiler* compiler, Token* token) {
@@ -202,7 +209,7 @@ static void compiler_string_interpolation(Compiler* compiler) {
     }
 }
 
-static size_t compiler_jump(Compiler* compiler, Opcode op) {
+static size_t compiler_stub_jump(Compiler* compiler, Opcode op) {
     compiler_emit_byte(compiler, op);
     compiler_emit_byte(compiler, 0xde);
     compiler_emit_byte(compiler, 0xad);
@@ -238,16 +245,18 @@ static void statement_block(Compiler* compiler) {
     compiler->scope = parent_scope;
 }
 
+// if <predicate-expr> <block-statement>
+// if <predicate-expr> <block-statement> else <block-statement>
 static void statement_if(Compiler* compiler) {
     compiler_parse_expression(compiler, precedence_none);
     if (!compiler->error) {
-        size_t jump_over_consequent = compiler_jump(compiler, op_jump_false);
+        size_t jump_over_consequent = compiler_stub_jump(compiler, op_jump_false);
         compiler_emit_byte(compiler, op_pop);
         compiler_consume(compiler, token_open_brace, "expected { after if and predicate");
         statement_block(compiler);
         if (!compiler->error && compiler_match(compiler, token_else)) {
             compiler_consume(compiler, token_open_brace, "expected { after else");
-            size_t jump_over_alternate = compiler_jump(compiler, op_jump);
+            size_t jump_over_alternate = compiler_stub_jump(compiler, op_jump);
             compiler_patch_jump(compiler, jump_over_consequent);
             compiler_emit_byte(compiler, op_pop);
             statement_block(compiler);
@@ -258,31 +267,24 @@ static void statement_if(Compiler* compiler) {
     }
 }
 
+// while <predicate-expr> <block-statement>
 static void statement_while(Compiler* compiler) {
     size_t predicate = compiler->chunk->bytes.count;
     compiler_parse_expression(compiler, precedence_none);
     if (!compiler->error) {
-        size_t jump = compiler_jump(compiler, op_jump_false);
+        size_t jump = compiler_stub_jump(compiler, op_jump_false);
         compiler_emit_byte(compiler, op_pop);
         compiler_consume(compiler, token_open_brace, "expected { after while predicate");
         statement_block(compiler);
-        compiler_emit_byte(compiler, op_jump);
-        ptrdiff_t back = predicate - compiler->chunk->bytes.count - 2;
-        compiler_emit_byte(compiler, (uint8_t)(back >> 8));
-        compiler_emit_byte(compiler, (uint8_t)back);
+        compiler_emit_jump(compiler, predicate);
         compiler_patch_jump(compiler, jump);
     }
 }
 
-static void statement_print(Compiler* compiler) {
-    if (!rules[compiler->current_token.type].nud) {
-        compiler_error(compiler, &compiler->current_token, "expected an expression");
-    } else if (compiler_parse_expression(compiler, precedence_none)) {
-        compiler_consume(compiler, token_semicolon, "expected ; to end print statement");
-        compiler_emit_byte(compiler, op_print);
-    }
-}
-
+// var <identifier> ;
+// var <identifier> = <expression> ;
+// let <identifier> ;
+// let <identifier> = <expression> ;
 static void statement_declaration(Compiler* compiler) {
     bool mutable = compiler->previous_token.type == token_var;
     compiler_consume(compiler, token_identifier, "expected variable name (identifier)");
@@ -298,6 +300,46 @@ static void statement_declaration(Compiler* compiler) {
         if (compiler->scope == &compiler->chunk->vm->global_scope) {
             compiler_emit_bytes(compiler, op_define_global, var->index);
         }
+    }
+}
+
+// for ( <expr> | <declaration>; <predicate-expr>; <increment-expr> ) <block-statement>
+static void statement_for(Compiler* compiler) {
+    compiler_consume(compiler, token_open_paren, "expected ( after for");
+
+    if (compiler_match(compiler, token_var)) {
+        statement_declaration(compiler);
+    } else {
+        compiler_parse_expression(compiler, precedence_none);
+        compiler_consume(compiler, token_semicolon, "expected ; after initialization part of for");
+    }
+
+    size_t predicate = compiler->chunk->bytes.count;
+    compiler_parse_expression(compiler, precedence_none);
+    compiler_consume(compiler, token_semicolon, "expected ; after predicate part of for");
+    size_t exit_jump = compiler_stub_jump(compiler, op_jump_false);
+    compiler_emit_byte(compiler, op_pop);
+    size_t body_jump = compiler_stub_jump(compiler, op_jump);
+
+    compiler_parse_expression(compiler, precedence_none);
+    compiler_emit_byte(compiler, op_pop);
+    compiler_consume(compiler, token_close_paren, "expected ) after increment part of for");
+    compiler_emit_jump(compiler, predicate);
+
+    compiler_patch_jump(compiler, body_jump);
+    compiler_consume(compiler, token_open_brace, "expected { after while predicate");
+    statement_block(compiler);
+    compiler_emit_jump(compiler, body_jump);
+    compiler_patch_jump(compiler, exit_jump);
+    compiler_emit_byte(compiler, op_pop);
+}
+
+static void statement_print(Compiler* compiler) {
+    if (!rules[compiler->current_token.type].nud) {
+        compiler_error(compiler, &compiler->current_token, "expected an expression");
+    } else if (compiler_parse_expression(compiler, precedence_none)) {
+        compiler_consume(compiler, token_semicolon, "expected ; to end print statement");
+        compiler_emit_byte(compiler, op_print);
     }
 }
 
@@ -385,9 +427,9 @@ static void nud_unary_op(Compiler* compiler) {
     }
 }
 
-static void led_op_lazy(Compiler* compiler) {
+static void led_and_or(Compiler* compiler) {
     TokenType t = compiler->previous_token.type;
-    size_t jump = compiler_jump(compiler, t == token_or ? op_jump_true : op_jump_false);
+    size_t jump = compiler_stub_jump(compiler, t == token_or ? op_jump_true : op_jump_false);
     compiler_emit_byte(compiler, op_pop);
     compiler_parse_expression(compiler, rules[t].precedence);
     compiler_patch_jump(compiler, jump);
@@ -427,9 +469,10 @@ static void led_right_op(Compiler* compiler) {
 }
 
 Denotation statements[] = {
+    [token_for] = statement_for,
     [token_if] = statement_if,
-    [token_open_brace] = statement_block,
     [token_let] = statement_declaration,
+    [token_open_brace] = statement_block,
     [token_print] = statement_print,
     [token_var] = statement_declaration,
     [token_while] = statement_while,
@@ -458,9 +501,9 @@ Rule rules[] = {
     [token_star_star] = { 0, led_right_op, precedence_exponentiation },
     [token_infinity] = { nud_number, 0, precedence_none },
     [token_identifier] = { nud_identifier, 0, precedence_none },
-    [token_and] = { 0, led_op_lazy, precedence_and },
+    [token_and] = { 0, led_and_or, precedence_and },
     [token_number] = { nud_number, 0, precedence_none },
-    [token_or] = { 0, led_op_lazy, precedence_or },
+    [token_or] = { 0, led_and_or, precedence_or },
     [token_false] = { nud_false, 0, precedence_none },
     [token_nil] = { nud_nil, 0, precedence_none },
     [token_true] = { nud_true, 0, precedence_none },

@@ -126,8 +126,9 @@ void chunk_debug(Chunk* chunk, const char* name) {
             case op_jump_false: {
                 uint8_t hi = chunk->bytes.items[i];
                 uint8_t lo = chunk->bytes.items[i + 1];
-                fprintf(stderr, "%02x %02x  %s %d\n", hi, lo, opcodes[opcode], (int16_t)((hi << 8) | lo));
+                ptrdiff_t offset = (int16_t)((hi << 8) | lo);
                 i += 2;
+                fprintf(stderr, "%02x %02x  %s -> %zu\n", hi, lo, opcodes[opcode], i + offset);
                 k += 1;
                 break;
             }
