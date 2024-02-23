@@ -172,7 +172,7 @@ Value value_concatenate_strings(Value x, Value y) {
                 // x * y is still a short string when |x| + |y| fits in a short string. Use the x string,
                 // mask off the length bits, and OR with the y chars shifted by |x| and the new length.
                 return (Value){ .as_int = (x.as_int & ~VALUE_SHORT_STRING_LENGTH_MASK) |
-                    ((y.as_int & (((1 << (7 * m)) - 1) << 6)) << (7 * n)) | (l << 3) };
+                    ((y.as_int & (((1 << (7 * n)) - 1) << 6)) << (7 * m)) | (l << 3) };
             }
             // x * y is too long to fit in a short string.
             return value_concatenate_short_short(x, y);
