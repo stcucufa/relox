@@ -4,6 +4,7 @@
 
 #include <math.h>
 #include <stdarg.h>
+#include <stdlib.h>
 
 #include "compiler.h"
 #include "vm.h"
@@ -205,29 +206,28 @@ Var* vm_add_global(VM* vm, Value v, bool mutable) {
 }
 
 Result vm_run(VM* vm, const char* source) {
-    Chunk chunk;
-    chunk_init(&chunk);
-    chunk.vm = vm;
+    Function* function = function_new();
+    function->chunk->vm = vm;
     hamt_init(&vm->global_scope);
     hamt_init(&vm->strings);
     value_array_init(&vm->objects);
     value_array_init(&vm->globals);
-    if (!compile_chunk(source, &chunk)) {
-        chunk_free(&chunk);
+    if (!compile_function(source, function)) {
+        function_free(function);
         return result_compile_error;
     }
 
 #ifdef DEBUG
-    chunk_debug(&chunk, "Compiled chunk");
+    chunk_debug(function->chunk, "Compiled chunk");
 #endif
 
-    vm->chunk = &chunk;
-    vm->ip = chunk.bytes.items;
+    vm->chunk = function->chunk;
+    vm->ip = function->chunk->bytes.items;
     vm->sp = vm->stack;
 
 #define BYTE() *vm->ip++
 #define WORD() ((*vm->ip++) << 8 | (*vm->ip++))
-#define CONSTANT() chunk.values.items[BYTE()]
+#define CONSTANT() function->chunk->values.items[BYTE()]
 #define PUSH(x) *vm->sp++ = (x)
 #define POP() (*(--vm->sp))
 #define PEEK(i) (*(vm->sp - 1 - (i)))
@@ -257,7 +257,7 @@ Result vm_run(VM* vm, const char* source) {
     uint8_t opcode;
     do {
 #ifdef DEBUG
-        fprintf(stderr, "~~~ %4zu ", vm->ip - chunk.bytes.items);
+        fprintf(stderr, "~~~ %4zu ", vm->ip - function->chunk->bytes.items);
 #endif
         switch (opcode = BYTE()) {
             case op_nil: PUSH(VALUE_NIL); break;
@@ -407,7 +407,7 @@ Result vm_run(VM* vm, const char* source) {
     fputs("\n", stderr);
 #endif
 
-    chunk_free(&chunk);
+    function_free(function);
     return result_ok;
 
 #undef BYTE

@@ -4,8 +4,8 @@
 #include "compiler.h"
 #include "hamt.h"
 #include "lexer.h"
-#include "object.h"
 #include "value.h"
+#include "vm.h"
 
 struct Compiler;
 
@@ -35,7 +35,7 @@ Denotation statements[];
 Rule rules[];
 
 typedef struct Compiler {
-    Chunk* chunk;
+    Function* function;
     HAMT constants;
     ValueArray scopes;
     size_t locals_count;
@@ -59,23 +59,23 @@ static void compiler_error(Compiler* compiler, Token* token, const char* message
 }
 
 static void compiler_emit_byte(Compiler* compiler, uint8_t byte) {
-    chunk_add_byte(compiler->chunk, byte, compiler->lexer->line);
+    chunk_add_byte(compiler->function->chunk, byte, compiler->lexer->line);
 }
 
 static void compiler_emit_bytes(Compiler* compiler, uint8_t x, uint8_t y) {
-    chunk_add_byte(compiler->chunk, x, compiler->lexer->line);
-    chunk_add_byte(compiler->chunk, y, compiler->lexer->line);
+    chunk_add_byte(compiler->function->chunk, x, compiler->lexer->line);
+    chunk_add_byte(compiler->function->chunk, y, compiler->lexer->line);
 }
 
 static void compiler_emit_constant(Compiler* compiler, Value value) {
     compiler_emit_byte(compiler, op_constant);
-    uint8_t n = (uint8_t)chunk_add_constant(compiler->chunk, &compiler->constants, value);
+    uint8_t n = (uint8_t)chunk_add_constant(compiler->function->chunk, &compiler->constants, value);
     compiler_emit_byte(compiler, n);
 }
 
 static void compiler_emit_jump(Compiler* compiler, size_t to) {
     compiler_emit_byte(compiler, op_jump);
-    ptrdiff_t offset = to - compiler->chunk->bytes.count - 2;
+    ptrdiff_t offset = to - compiler->function->chunk->bytes.count - 2;
     compiler_emit_byte(compiler, (uint8_t)(offset >> 8));
     compiler_emit_byte(compiler, (uint8_t)offset);
 }
@@ -147,17 +147,17 @@ static void compiler_string_constant(Compiler* compiler, Token* token) {
         return;
     }
     Value string = value_copy_string(token->start + 1, token->length - trim);
-    string = vm_add_object(compiler->chunk->vm, string);
-    uint8_t n = chunk_add_constant(compiler->chunk, &compiler->constants, string);
+    string = vm_add_object(compiler->function->chunk->vm, string);
+    uint8_t n = chunk_add_constant(compiler->function->chunk, &compiler->constants, string);
     compiler_emit_bytes(compiler, op_constant, n);
 }
 
 static Var* compiler_declare_var(Compiler* compiler, Token* token, bool mutable) {
     Value string = value_copy_string(token->start, token->length);
-    Value v = vm_add_object(compiler->chunk->vm, string);
+    Value v = vm_add_object(compiler->function->chunk->vm, string);
     size_t i = compiler->scopes.count - 1;
     if (i == 0) {
-        return vm_add_global(compiler->chunk->vm, v, mutable);
+        return vm_add_global(compiler->function->chunk->vm, v, mutable);
     }
 
     // We are in a local scope (there is more than one scope in the stack).
@@ -173,7 +173,7 @@ static Var* compiler_declare_var(Compiler* compiler, Token* token, bool mutable)
         return 0;
     }
 
-    Var* var = vm_var_new(compiler->chunk->vm, compiler->locals_count, mutable, false);
+    Var* var = vm_var_new(compiler->function->chunk->vm, compiler->locals_count, mutable, false);
     compiler->locals_count += 1;
     scope = hamt_with(scope, v, VALUE_FROM_POINTER(var));
     scope = hamt_with(scope, VALUE_FROM_INT(var->index), v);
@@ -183,10 +183,10 @@ static Var* compiler_declare_var(Compiler* compiler, Token* token, bool mutable)
 
 static Var* compiler_find_var(Compiler* compiler, Token* token) {
     Value string = value_copy_string(token->start, token->length);
-    Value v = vm_add_object(compiler->chunk->vm, string);
+    Value v = vm_add_object(compiler->function->chunk->vm, string);
     size_t i = compiler->scopes.count - 1;
     if (i == 0) {
-        return vm_add_global(compiler->chunk->vm, v, token->type == token_let);
+        return vm_add_global(compiler->function->chunk->vm, v, token->type == token_let);
     }
     Value w = hamt_get(VALUE_TO_HAMT(compiler->scopes.items[i]), v);
     if (VALUE_IS_NONE(w)) {
@@ -212,13 +212,13 @@ static size_t compiler_stub_jump(Compiler* compiler, Opcode op) {
     compiler_emit_byte(compiler, op);
     compiler_emit_byte(compiler, 0xde);
     compiler_emit_byte(compiler, 0xad);
-    return compiler->chunk->bytes.count;
+    return compiler->function->chunk->bytes.count;
 }
 
 static void compiler_patch_jump(Compiler* compiler, size_t dest) {
-    ptrdiff_t offset = (compiler->chunk->bytes.count - dest);
-    compiler->chunk->bytes.items[dest - 2] = (uint8_t)(offset >> 8);
-    compiler->chunk->bytes.items[dest - 1] = (uint8_t)offset;
+    ptrdiff_t offset = (compiler->function->chunk->bytes.count - dest);
+    compiler->function->chunk->bytes.items[dest - 2] = (uint8_t)(offset >> 8);
+    compiler->function->chunk->bytes.items[dest - 1] = (uint8_t)offset;
 }
 
 static void statement_block(Compiler* compiler) {
@@ -342,7 +342,7 @@ static void statement_switch(Compiler* compiler) {
 
 // while <predicate-expr> <block-statement>
 static void statement_while(Compiler* compiler) {
-    size_t predicate = compiler->chunk->bytes.count;
+    size_t predicate = compiler->function->chunk->bytes.count;
     compiler_parse_expression(compiler, precedence_none);
     if (!compiler->error) {
         size_t jump = compiler_stub_jump(compiler, op_jump_false);
@@ -387,7 +387,7 @@ static void statement_for(Compiler* compiler) {
         compiler_consume(compiler, token_semicolon, "expected ; after initialization part of for");
     }
 
-    size_t predicate = compiler->chunk->bytes.count;
+    size_t predicate = compiler->function->chunk->bytes.count;
     compiler_parse_expression(compiler, precedence_none);
     compiler_consume(compiler, token_semicolon, "expected ; after predicate part of for");
     size_t exit_jump = compiler_stub_jump(compiler, op_jump_false);
@@ -584,14 +584,14 @@ Rule rules[] = {
     [token_eof] = { 0, 0, precedence_eof },
 };
 
-bool compile_chunk(const char* source, Chunk* chunk) {
+bool compile_function(const char* source, Function* function) {
     Compiler compiler;
     Lexer lexer;
     lexer_init(&lexer, source);
-    compiler.chunk = chunk;
+    compiler.function = function;
     hamt_init(&compiler.constants);
     value_array_init(&compiler.scopes);
-    value_array_push(&compiler.scopes, VALUE_FROM_POINTER(&chunk->vm->global_scope));
+    value_array_push(&compiler.scopes, VALUE_FROM_POINTER(&function->chunk->vm->global_scope));
     compiler.locals_count = 0;
     compiler.lexer = &lexer;
     compiler.error = false;

@@ -7,7 +7,6 @@
 
 #include "array.h"
 #include "hamt.h"
-#include "object.h"
 #include "value.h"
 
 typedef enum {
@@ -52,7 +51,7 @@ typedef enum {
 
 typedef struct VM VM;
 
-typedef struct {
+typedef struct Chunk {
     struct VM* vm;
     ByteArray bytes;
     NumberArray line_numbers;

@@ -2,8 +2,8 @@
 #define __COMPILER_H__
 
 #include <stdbool.h>
-#include "vm.h"
+#include "value.h"
 
-bool compile_chunk(const char*, Chunk*);
+bool compile_function(const char*, Function*);
 
 #endif
