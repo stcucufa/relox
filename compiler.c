@@ -156,11 +156,12 @@ static Var* compiler_declare_var(Compiler* compiler, Token* token, bool mutable)
     Value string = value_copy_string(token->start, token->length);
     Value v = vm_add_object(compiler->chunk->vm, string);
     size_t i = compiler->scopes.count - 1;
-    HAMT* scope = VALUE_TO_HAMT(compiler->scopes.items[i]);
-    if (scope == &compiler->chunk->vm->global_scope) {
+    if (i == 0) {
         return vm_add_global(compiler->chunk->vm, v, mutable);
     }
 
+    // We are in a local scope (there is more than one scopes in the stack).
+    HAMT* scope = VALUE_TO_HAMT(compiler->scopes.items[i]);
     if (!VALUE_IS_NONE(hamt_get(scope, v))) {
         compiler_error(compiler, token, "var is already defined");
         return 0;
@@ -182,11 +183,11 @@ static Var* compiler_declare_var(Compiler* compiler, Token* token, bool mutable)
 static Var* compiler_find_var(Compiler* compiler, Token* token) {
     Value string = value_copy_string(token->start, token->length);
     Value v = vm_add_object(compiler->chunk->vm, string);
-    HAMT* scope = VALUE_TO_HAMT(compiler->scopes.items[compiler->scopes.count - 1]);
-    if (scope == &compiler->chunk->vm->global_scope) {
+    size_t i = compiler->scopes.count - 1;
+    if (i == 0) {
         return vm_add_global(compiler->chunk->vm, v, token->type == token_let);
     }
-    Value w = hamt_get(scope, v);
+    Value w = hamt_get(VALUE_TO_HAMT(compiler->scopes.items[i]), v);
     if (VALUE_IS_NONE(w)) {
         compiler_error(compiler, token, "var is not defined");
         return 0;
