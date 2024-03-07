@@ -160,9 +160,10 @@ static Var* compiler_declare_var(Compiler* compiler, Token* token, bool mutable)
         return vm_add_global(compiler->chunk->vm, v, mutable);
     }
 
-    // We are in a local scope (there is more than one scopes in the stack).
+    // We are in a local scope (there is more than one scope in the stack).
     HAMT* scope = VALUE_TO_HAMT(compiler->scopes.items[i]);
-    if (!VALUE_IS_NONE(hamt_get(scope, v))) {
+    Value w = hamt_get(scope, v);
+    if (!VALUE_IS_NONE(w) && !VALUE_EQUAL(hamt_get(VALUE_TO_HAMT(compiler->scopes.items[i - 1]), v), w)) {
         compiler_error(compiler, token, "var is already defined");
         return 0;
     }
