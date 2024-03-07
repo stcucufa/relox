@@ -206,8 +206,16 @@ HAMT* hamt_with(HAMT* hamt, Value key, Value value) {
             return newh;
         }
 
+        // Copy the original node.
+        newn->content.nodes = calloc(sizeof(HAMTNode), k);
+        for (size_t ii = 0; ii < k; ++ii) {
+            newn->content.nodes[ii] = node->content.nodes[ii];
+        }
+
         // The slot is occupied by an entry or a map.
         node = &node->content.nodes[j];
+        newn = &newn->content.nodes[j];
+
         if (!VALUE_IS_HAMT_NODE(node->key)) {
             // This is an entry which needs to be updated if the keys match;
             // otherwise, a new map needs to be inserted instead for both the
@@ -218,20 +226,13 @@ HAMT* hamt_with(HAMT* hamt, Value key, Value value) {
                 hamt_resolve_collision(node, newn, key, value, node->key, node->content.value, hash, i);
                 hamt->count += 1;
             }
-            return hamt;
-        } else {
-            // Copy the original node.
-            newn = malloc(sizeof(HAMTNode));
-            newn->content.nodes = calloc(sizeof(HAMTNode), k);
-            for (size_t ii = 0; ii < k; ++ii) {
-                newn->content.nodes[ii] = node->content.nodes[ii];
-            }
+            return newh;
         }
 
         // Keep going down with the next 5 bits of the hash.
         hash >>= 5;
     }
- 
+
     return newh;
 }
 

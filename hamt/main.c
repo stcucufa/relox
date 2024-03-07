@@ -14,8 +14,11 @@ int main(int argc, char* argv[argc + 1]) {
     hamt_set(&hamt, VALUE_FROM_NUMBER(31), VALUE_FROM_NUMBER(51));
     HAMT* h2 = hamt_with(&hamt, VALUE_FROM_NUMBER(111), VALUE_FROM_NUMBER(223));
     h2 = hamt_with(h2, VALUE_FROM_NUMBER(31), VALUE_FROM_NUMBER(71));
+    fprintf(stderr, "hamt <%p> ", (void*)&hamt);
     hamt_debug(&hamt);
+    fprintf(stderr, "h1   <%p> ", (void*)h1);
     hamt_debug(h1);
+    fprintf(stderr, "h2   <%p> ", (void*)h2);
     hamt_debug(h2);
 
     // TODO test numbers from 0 to 131151 (double collision)
