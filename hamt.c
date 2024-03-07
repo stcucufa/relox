@@ -80,8 +80,8 @@ Value hamt_find_key(HAMT* hamt, Value value) {
 // Replace that entry with a new map by getting the next 5 bits of both hashes,
 // and keep going while there are collisions.
 // TODO rehash if the full hashes collide.
-static void hamt_resolve_collision(HAMTNode* node, Value key, Value value, Value previous_key,
-    Value previous_value, uint32_t hash, size_t i) {
+static void hamt_resolve_collision(HAMTNode* node, HAMTNode* newn, Value key, Value value,
+    Value previous_key, Value previous_value, uint32_t hash, size_t i) {
     if (i >= 6) {
         exit(EXIT_FAILURE);
     }
@@ -90,27 +90,31 @@ static void hamt_resolve_collision(HAMTNode* node, Value key, Value value, Value
     size_t new_mask = 1 << ((hash >> 5) & 0x1f);
     size_t previous_mask = 1 << (value_hash(previous_key) >> (5 * (i + 1)));
     // Update the bitmap in the node.
-    node->key = VALUE_HAMT_NODE;
-    node->key.as_int |= new_mask;
-    node->key.as_int |= previous_mask;
+    newn->key = VALUE_HAMT_NODE;
+    newn->key.as_int |= new_mask;
+    newn->key.as_int |= previous_mask;
 
     if (new_mask == previous_mask) {
         // Both entries have the same position, so insert yet another map in
         // between.
         node->content.nodes = malloc(sizeof(HAMTNode));
+        if (newn != node) {
+            newn->content.nodes = malloc(sizeof(HAMTNode));
+        }
         hamt_resolve_collision(
-            node->content.nodes, key, value, previous_key, previous_value, hash >> 5, i + 1
+            node->content.nodes, newn->content.nodes,
+            key, value, previous_key, previous_value, hash >> 5, i + 1
         );
     } else {
         // The entries have different positions, so add the two values to the
         // new map.
         size_t new_i = new_mask < previous_mask ? 0 : 1;
         size_t previous_i = new_mask < previous_mask ? 1 : 0;
-        node->content.nodes = calloc(sizeof(HAMTNode), 2);
-        node->content.nodes[new_i].key = key;
-        node->content.nodes[new_i].content.value = value;
-        node->content.nodes[previous_i].key = previous_key;
-        node->content.nodes[previous_i].content.value = previous_value;
+        newn->content.nodes = calloc(sizeof(HAMTNode), 2);
+        newn->content.nodes[new_i].key = key;
+        newn->content.nodes[new_i].content.value = value;
+        newn->content.nodes[previous_i].key = previous_key;
+        newn->content.nodes[previous_i].content.value = previous_value;
     }
 }
 
@@ -145,19 +149,18 @@ void hamt_set(HAMT* hamt, Value key, Value value) {
             node->content.nodes = nodes;
             hamt->count += 1;
             return;
-
         }
 
         // The slot is occupied by an entry or a map.
         node = &node->content.nodes[j];
         if (!VALUE_IS_HAMT_NODE(node->key)) {
-            // This is an entry which needs to be updated if the keys map;
+            // This is an entry which needs to be updated if the keys match;
             // otherwise, a new map needs to be inserted instead for both the
             // previous entry and the new entry (see above).
             if (VALUE_EQUAL(node->key, key)) {
                 node->content.value = value;
             } else {
-                hamt_resolve_collision(node, key, value, node->key, node->content.value, hash, i);
+                hamt_resolve_collision(node, node, key, value, node->key, node->content.value, hash, i);
                 hamt->count += 1;
             }
             return;
@@ -166,6 +169,70 @@ void hamt_set(HAMT* hamt, Value key, Value value) {
         // Keep going down with the next 5 bits of the hash.
         hash >>= 5;
     }
+}
+
+// Persistent add: create a new HAMT with this key/value, sharing as many nodes
+// with the original HAMT as possible.
+HAMT* hamt_with(HAMT* hamt, Value key, Value value) {
+    HAMT* newh = malloc(sizeof(HAMT));
+    hamt_init(newh);
+    newh->count = hamt->count;
+
+    uint32_t hash = value_hash(key);
+    HAMTNode* node = &hamt->root;
+    HAMTNode* newn = &newh->root;
+    for (size_t i = 0; i < 6; ++i) {
+        uint32_t mask = 1 << (hash & 0x1f);
+        uint32_t bitmap = VALUE_TO_HAMT_NODE_BITMAP(node->key);
+        size_t j = __builtin_popcount(bitmap & (mask - 1));
+        size_t k = __builtin_popcount(bitmap);
+        newn->key = node->key;
+
+        if ((bitmap & mask) == 0) {
+            // A free slot was found so add a new entry to the new map.
+            newn->key.as_int |= (uint64_t)mask;
+            // Copy the k values to a new array to keep them in order.
+            HAMTNode* nodes = calloc(sizeof(HAMTNode), k + 1);
+            for (size_t ii = 0; ii < j; ++ii) {
+                nodes[ii] = node->content.nodes[ii];
+            }
+            // Insert the new entry at the right position.
+            nodes[j] = (HAMTNode){ .key = key, .content = { .value = value } };
+            for (size_t ii = j + 1; ii <= k; ++ii) {
+                nodes[ii] = node->content.nodes[ii - 1];
+            }
+            newn->content.nodes = nodes;
+            newh->count += 1;
+            return newh;
+        }
+
+        // The slot is occupied by an entry or a map.
+        node = &node->content.nodes[j];
+        if (!VALUE_IS_HAMT_NODE(node->key)) {
+            // This is an entry which needs to be updated if the keys match;
+            // otherwise, a new map needs to be inserted instead for both the
+            // previous entry and the new entry (see above).
+            if (VALUE_EQUAL(node->key, key)) {
+                newn->content.value = value;
+            } else {
+                hamt_resolve_collision(node, newn, key, value, node->key, node->content.value, hash, i);
+                hamt->count += 1;
+            }
+            return hamt;
+        } else {
+            // Copy the original node.
+            newn = malloc(sizeof(HAMTNode));
+            newn->content.nodes = calloc(sizeof(HAMTNode), k);
+            for (size_t ii = 0; ii < k; ++ii) {
+                newn->content.nodes[ii] = node->content.nodes[ii];
+            }
+        }
+
+        // Keep going down with the next 5 bits of the hash.
+        hash >>= 5;
+    }
+ 
+    return newh;
 }
 
 // Free a node and its children.
