@@ -235,7 +235,7 @@ static void statement_block(Compiler* compiler) {
     for (; compiler->locals_count > parent_count; --compiler->locals_count) {
         compiler_emit_byte(compiler, op_pop);
     }
-    value_array_pop(&compiler->scopes);
+    hamt_free(VALUE_TO_HAMT(value_array_pop(&compiler->scopes)));
 }
 
 // if <predicate-expr> <block-statement>

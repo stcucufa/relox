@@ -8,6 +8,7 @@
 // of 1 to 32 child nodes. The bitmap indicates which slots have a node or
 // not to avoid storing 32 pointers in each node.
 typedef struct HAMTNode {
+    size_t refcount;
     Value key;
     union {
         Value value;

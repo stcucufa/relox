@@ -5,6 +5,7 @@ void hamt_init(HAMT* hamt) {
     hamt->count = 0;
     hamt->root.key = VALUE_HAMT_NODE;
     hamt->root.content.nodes = 0;
+    hamt->root.refcount = 1;
 }
 
 // Get the value for a key from the HAMT; return VALUE_NONE if it was not found.
@@ -111,8 +112,10 @@ static void hamt_resolve_collision(HAMTNode* node, HAMTNode* newn, Value key, Va
         size_t new_i = new_mask < previous_mask ? 0 : 1;
         size_t previous_i = new_mask < previous_mask ? 1 : 0;
         newn->content.nodes = calloc(sizeof(HAMTNode), 2);
+        newn->content.nodes[new_i].refcount = 1;
         newn->content.nodes[new_i].key = key;
         newn->content.nodes[new_i].content.value = value;
+        newn->content.nodes[previous_i].refcount = 1;
         newn->content.nodes[previous_i].key = previous_key;
         newn->content.nodes[previous_i].content.value = previous_value;
     }
@@ -138,11 +141,13 @@ void hamt_set(HAMT* hamt, Value key, Value value) {
             HAMTNode* nodes = calloc(sizeof(HAMTNode), k + 1);
             for (size_t ii = 0; ii < j; ++ii) {
                 nodes[ii] = node->content.nodes[ii];
+                nodes[ii].refcount += 1;
             }
             // Insert the new entry at the right position.
-            nodes[j] = (HAMTNode){ .key = key, .content = { .value = value } };
+            nodes[j] = (HAMTNode){ .refcount = 1, .key = key, .content = { .value = value } };
             for (size_t ii = j + 1; ii <= k; ++ii) {
                 nodes[ii] = node->content.nodes[ii - 1];
+                nodes[ii].refcount += 1;
             }
             // TODO keep a pool of nodes instead of allocating/freeing.
             free(node->content.nodes);
@@ -195,11 +200,13 @@ HAMT* hamt_with(HAMT* hamt, Value key, Value value) {
             HAMTNode* nodes = calloc(sizeof(HAMTNode), k + 1);
             for (size_t ii = 0; ii < j; ++ii) {
                 nodes[ii] = node->content.nodes[ii];
+                nodes[ii].refcount += 1;
             }
             // Insert the new entry at the right position.
-            nodes[j] = (HAMTNode){ .key = key, .content = { .value = value } };
+            nodes[j] = (HAMTNode){ .refcount = 1, .key = key, .content = { .value = value } };
             for (size_t ii = j + 1; ii <= k; ++ii) {
                 nodes[ii] = node->content.nodes[ii - 1];
+                nodes[ii].refcount += 1;
             }
             newn->content.nodes = nodes;
             newh->count += 1;
@@ -210,6 +217,7 @@ HAMT* hamt_with(HAMT* hamt, Value key, Value value) {
         newn->content.nodes = calloc(sizeof(HAMTNode), k);
         for (size_t ii = 0; ii < k; ++ii) {
             newn->content.nodes[ii] = node->content.nodes[ii];
+            newn->content.nodes[ii].refcount += 1;
         }
 
         // The slot is occupied by an entry or a map.
@@ -238,6 +246,11 @@ HAMT* hamt_with(HAMT* hamt, Value key, Value value) {
 
 // Free a node and its children.
 static void hamt_free_node(HAMTNode* node) {
+    node->refcount -= 1;
+    if (node->refcount > 0) {
+        return;
+    }
+
     size_t k = __builtin_popcount(VALUE_TO_HAMT_NODE_BITMAP(node->key));
     for (size_t i = 0; i < k; ++i) {
         HAMTNode* child_node = &node->content.nodes[i];
