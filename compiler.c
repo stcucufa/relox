@@ -1,5 +1,6 @@
 #include <stdlib.h>
 
+#include "array.h"
 #include "compiler.h"
 #include "hamt.h"
 #include "lexer.h"
@@ -36,7 +37,7 @@ Rule rules[];
 typedef struct Compiler {
     Chunk* chunk;
     HAMT constants;
-    HAMT* scope;
+    ValueArray scopes;
     size_t locals_count;
     Lexer* lexer;
     Token previous_token;
@@ -154,11 +155,15 @@ static void compiler_string_constant(Compiler* compiler, Token* token) {
 static Var* compiler_declare_var(Compiler* compiler, Token* token, bool mutable) {
     Value string = value_copy_string(token->start, token->length);
     Value v = vm_add_object(compiler->chunk->vm, string);
-    if (compiler->scope == &compiler->chunk->vm->global_scope) {
+    size_t i = compiler->scopes.count - 1;
+    if (i == 0) {
         return vm_add_global(compiler->chunk->vm, v, mutable);
     }
 
-    if (!VALUE_IS_NONE(hamt_get(compiler->scope, v))) {
+    // We are in a local scope (there is more than one scope in the stack).
+    HAMT* scope = VALUE_TO_HAMT(compiler->scopes.items[i]);
+    Value w = hamt_get(scope, v);
+    if (!VALUE_IS_NONE(w) && !VALUE_EQUAL(hamt_get(VALUE_TO_HAMT(compiler->scopes.items[i - 1]), v), w)) {
         compiler_error(compiler, token, "var is already defined");
         return 0;
     }
@@ -170,26 +175,20 @@ static Var* compiler_declare_var(Compiler* compiler, Token* token, bool mutable)
 
     Var* var = vm_var_new(compiler->chunk->vm, compiler->locals_count, mutable, false);
     compiler->locals_count += 1;
-    hamt_set(compiler->scope, v, VALUE_FROM_POINTER(var));
-    hamt_set(compiler->scope, VALUE_FROM_INT(var->index), v);
+    scope = hamt_with(scope, v, VALUE_FROM_POINTER(var));
+    scope = hamt_with(scope, VALUE_FROM_INT(var->index), v);
+    compiler->scopes.items[i] = VALUE_FROM_POINTER(scope);
     return var;
 }
 
 static Var* compiler_find_var(Compiler* compiler, Token* token) {
     Value string = value_copy_string(token->start, token->length);
     Value v = vm_add_object(compiler->chunk->vm, string);
-    HAMT* global_scope = &compiler->chunk->vm->global_scope;
-    if (compiler->scope == global_scope) {
+    size_t i = compiler->scopes.count - 1;
+    if (i == 0) {
         return vm_add_global(compiler->chunk->vm, v, token->type == token_let);
     }
-    for (HAMT* scope = compiler->scope; scope != global_scope;
-        scope = VALUE_TO_HAMT(hamt_get(scope, VALUE_EPSILON))) {
-        Value w = hamt_get(scope, v);
-        if (!VALUE_IS_NONE(w)) {
-            return (Var*)VALUE_TO_POINTER(w);
-        }
-    }
-    Value w = hamt_get(global_scope, v);
+    Value w = hamt_get(VALUE_TO_HAMT(compiler->scopes.items[i]), v);
     if (VALUE_IS_NONE(w)) {
         compiler_error(compiler, token, "var is not defined");
         return 0;
@@ -223,14 +222,9 @@ static void compiler_patch_jump(Compiler* compiler, size_t dest) {
 }
 
 static void statement_block(Compiler* compiler) {
-    HAMT* parent_scope = compiler->scope;
+    HAMT* parent_scope = VALUE_TO_HAMT(compiler->scopes.items[compiler->scopes.count - 1]);
     size_t parent_count = compiler->locals_count;
-
-    HAMT scope;
-    hamt_init(&scope);
-    hamt_set(&scope, VALUE_EPSILON, VALUE_FROM_POINTER(parent_scope));
-    compiler->scope = &scope;
-
+    value_array_push(&compiler->scopes, VALUE_FROM_POINTER(parent_scope));
     while (!compiler->error && compiler->current_token.type != token_close_brace) {
         compiler_parse_statement(compiler);
     }
@@ -241,8 +235,11 @@ static void statement_block(Compiler* compiler) {
     for (; compiler->locals_count > parent_count; --compiler->locals_count) {
         compiler_emit_byte(compiler, op_pop);
     }
-    hamt_free(&scope);
-    compiler->scope = parent_scope;
+
+    HAMT* child_scope = VALUE_TO_HAMT(value_array_pop(&compiler->scopes));
+    if (child_scope != parent_scope) {
+        hamt_free(child_scope);
+    }
 }
 
 // if <predicate-expr> <block-statement>
@@ -373,7 +370,7 @@ static void statement_declaration(Compiler* compiler) {
             compiler_emit_byte(compiler, op_nil);
         }
         compiler_consume(compiler, token_semicolon, "expected ; to end var statement");
-        if (compiler->scope == &compiler->chunk->vm->global_scope) {
+        if (compiler->scopes.count == 1) {
             compiler_emit_bytes(compiler, op_define_global, var->index);
         }
     }
@@ -593,7 +590,8 @@ bool compile_chunk(const char* source, Chunk* chunk) {
     lexer_init(&lexer, source);
     compiler.chunk = chunk;
     hamt_init(&compiler.constants);
-    compiler.scope = &chunk->vm->global_scope;
+    value_array_init(&compiler.scopes);
+    value_array_push(&compiler.scopes, VALUE_FROM_POINTER(&chunk->vm->global_scope));
     compiler.locals_count = 0;
     compiler.lexer = &lexer;
     compiler.error = false;
