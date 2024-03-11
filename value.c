@@ -309,7 +309,7 @@ Function* function_new(void) {
     f->arity = 0;
     f->chunk = malloc(sizeof(Chunk));
     chunk_init(f->chunk);
-    f->name = VALUE_EPSILON;
+    f->name = VALUE_NONE;
     return f;
 }
 

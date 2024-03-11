@@ -67,7 +67,8 @@ void chunk_free(Chunk*);
 void chunk_debug(Chunk*, const char*);
 #endif
 
-#define STACK_SIZE 256
+#define FRAMES_MAX 64
+#define STACK_SIZE (FRAMES_MAX * (1 + UINT8_MAX))
 
 typedef struct {
     uint8_t index;
@@ -76,8 +77,15 @@ typedef struct {
     bool global;
 } Var;
 
+typedef struct {
+    Function* function;
+    uint8_t* ip;
+    Value* slots;
+} Frame;
+
 typedef struct VM {
-    Chunk* chunk;
+    Frame frames[FRAMES_MAX];
+    size_t frame_count;
     Value stack[STACK_SIZE];
     Value* sp;
     uint8_t* ip;
@@ -93,7 +101,7 @@ typedef enum {
     result_runtime_error,
 } Result;
 
-Result vm_run(VM*, const char*);
+Result vm_compile_and_run(VM*, const char*);
 Value vm_add_object(VM*, Value);
 Var* vm_var_new(VM*, size_t, bool, bool);
 Var* vm_add_global(VM*, Value, bool);

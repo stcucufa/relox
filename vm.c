@@ -205,33 +205,19 @@ Var* vm_add_global(VM* vm, Value v, bool mutable) {
     return var;
 }
 
-Result vm_run(VM* vm, const char* source) {
-    Function* function = function_new();
-    function->chunk->vm = vm;
-    hamt_init(&vm->global_scope);
-    hamt_init(&vm->strings);
-    value_array_init(&vm->objects);
-    value_array_init(&vm->globals);
-    if (!compile_function(source, function)) {
-        function_free(function);
-        return result_compile_error;
-    }
+Result vm_run(VM* vm) {
+    Frame* frame = &vm->frames[vm->frame_count - 1];
+    frame->ip = frame->function->chunk->bytes.items;
 
-#ifdef DEBUG
-    chunk_debug(function->chunk, "Compiled chunk");
-#endif
+#define BYTE() *frame->ip++
+#define WORD() (((*frame->ip++) << 8) | (*frame->ip++))
+#define CONSTANT() frame->function->chunk->values.items[BYTE()]
 
-    vm->chunk = function->chunk;
-    vm->ip = function->chunk->bytes.items;
-    vm->sp = vm->stack;
-
-#define BYTE() *vm->ip++
-#define WORD() ((*vm->ip++) << 8 | (*vm->ip++))
-#define CONSTANT() function->chunk->values.items[BYTE()]
 #define PUSH(x) *vm->sp++ = (x)
 #define POP() (*(--vm->sp))
 #define PEEK(i) (*(vm->sp - 1 - (i)))
 #define POKE(i, x) *(vm->sp - 1 - (i)) = (x)
+
 #define BINARY_OP_NUMBER(op) do { \
     if (!VALUE_IS_NUMBER(PEEK(1))) { \
         return runtime_error(vm, "First operand of arithmetic operation is not a number."); \
@@ -253,11 +239,10 @@ Result vm_run(VM* vm, const char* source) {
     POKE(0, (PEEK(0).as_double op v) ? VALUE_TRUE : VALUE_FALSE); \
 } while (0)
 
-
     uint8_t opcode;
     do {
 #ifdef DEBUG
-        fprintf(stderr, "~~~ %4zu ", vm->ip - function->chunk->bytes.items);
+        fprintf(stderr, "~~~ %4zu ", frame->ip - frame->function->chunk->bytes.items);
 #endif
         switch (opcode = BYTE()) {
             case op_nil: PUSH(VALUE_NIL); break;
@@ -368,15 +353,15 @@ Result vm_run(VM* vm, const char* source) {
                 vm->globals.items[n] = PEEK(0);
                 break;
             }
-            case op_get_local: PUSH(vm->stack[BYTE()]); break;
-            case op_set_local: vm->stack[BYTE()] = PEEK(0); break;
+            case op_get_local: PUSH(frame->slots[BYTE()]); break;
+            case op_set_local: frame->slots[BYTE()] = PEEK(0); break;
 
-            case op_jump: vm->ip += (int16_t)WORD(); break;
+            case op_jump: frame->ip += (int16_t)WORD(); break;
             case op_jump_true: {
                 ptrdiff_t offset = (int16_t)WORD();
                 Value p = PEEK(0);
                 if (!(VALUE_IS_FALSE(p) || VALUE_IS_EPSILON(p) || p.as_double == 0)) {
-                    vm->ip += offset;
+                    frame->ip += offset;
                 }
                 break;
             }
@@ -384,7 +369,7 @@ Result vm_run(VM* vm, const char* source) {
                 ptrdiff_t offset = (int16_t)WORD();
                 Value p = PEEK(0);
                 if (VALUE_IS_FALSE(p) || VALUE_IS_EPSILON(p) || p.as_double == 0) {
-                    vm->ip += offset;
+                    frame->ip += offset;
                 }
                 break;
             }
@@ -407,7 +392,6 @@ Result vm_run(VM* vm, const char* source) {
     fputs("\n", stderr);
 #endif
 
-    function_free(function);
     return result_ok;
 
 #undef BYTE
@@ -415,10 +399,36 @@ Result vm_run(VM* vm, const char* source) {
 #undef CONSTANT
 #undef PUSH
 #undef POP
-#undef POKE
 #undef PEEK
+#undef POKE
 #undef BINARY_OP_NUMBER
 #undef BINARY_OP_BOOLEAN
+}
+
+Result vm_compile_and_run(VM* vm, const char* source) {
+    Function* function = function_new();
+    function->chunk->vm = vm;
+    hamt_init(&vm->global_scope);
+    hamt_init(&vm->strings);
+    value_array_init(&vm->objects);
+    value_array_init(&vm->globals);
+    if (!compile_function(source, function)) {
+        function_free(function);
+        return result_compile_error;
+    }
+
+#ifdef DEBUG
+    chunk_debug(function->chunk, "Top-level function");
+#endif
+
+    Frame* frame = &vm->frames[vm->frame_count];
+    frame->function = function;
+    frame->slots = vm->stack;
+    vm->frame_count = 1;
+    vm->sp = vm->stack;
+    Result result = vm_run(vm);
+    function_free(function);
+    return result;
 }
 
 void vm_free(VM* vm) {
