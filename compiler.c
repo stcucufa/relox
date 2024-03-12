@@ -221,25 +221,33 @@ static void compiler_patch_jump(Compiler* compiler, size_t dest) {
     compiler->function->chunk->bytes.items[dest - 1] = (uint8_t)offset;
 }
 
-static void statement_block(Compiler* compiler) {
+static size_t compiler_enter_scope(Compiler* compiler) {
     HAMT* parent_scope = VALUE_TO_HAMT(compiler->scopes.items[compiler->scopes.count - 1]);
     size_t parent_count = compiler->locals_count;
     value_array_push(&compiler->scopes, VALUE_FROM_POINTER(parent_scope));
+    return parent_count;
+}
+
+static void compiler_exit_scope(Compiler* compiler, size_t parent_count) {
+    for (; compiler->locals_count > parent_count; --compiler->locals_count) {
+        compiler_emit_byte(compiler, op_pop);
+    }
+    HAMT* child_scope = VALUE_TO_HAMT(value_array_pop(&compiler->scopes));
+    HAMT* parent_scope = VALUE_TO_HAMT(compiler->scopes.items[compiler->scopes.count - 1]);
+    if (child_scope != parent_scope) {
+        hamt_free(child_scope);
+    }
+}
+
+static void statement_block(Compiler* compiler) {
+    size_t parent_count = compiler_enter_scope(compiler);
     while (!compiler->error && compiler->current_token.type != token_close_brace) {
         compiler_parse_statement(compiler);
     }
     if (!compiler->error) {
         compiler_consume(compiler, token_close_brace, "expected } to end a block");
     }
-
-    for (; compiler->locals_count > parent_count; --compiler->locals_count) {
-        compiler_emit_byte(compiler, op_pop);
-    }
-
-    HAMT* child_scope = VALUE_TO_HAMT(value_array_pop(&compiler->scopes));
-    if (child_scope != parent_scope) {
-        hamt_free(child_scope);
-    }
+    compiler_exit_scope(compiler, parent_count);
 }
 
 // if <predicate-expr> <block-statement>
@@ -373,6 +381,49 @@ static void statement_declaration(Compiler* compiler) {
         if (compiler->scopes.count == 1) {
             compiler_emit_bytes(compiler, op_define_global, var->index);
         }
+    }
+}
+
+// fun <identifier> ( ) { <block> }
+// fun foo() { print "ok"; }
+static void statement_function_declaration(Compiler* compiler) {
+    compiler_consume(compiler, token_identifier, "expected function name");
+    if (compiler->error) {
+        return;
+    }
+    Token* name_token = &compiler->previous_token;
+    compiler_declare_var(compiler, name_token, false);
+    var->initialized = true;
+
+    Function* outerFunction = compiler->function;
+    compiler->function = function_new();
+    compiler->function->name = value_copy_string(name_token->start, name_token->length);
+    compiler->function->chunk->vm = outerFunction->chunk->vm;
+    size_t parent_count = compiler_enter_scope(compiler);
+
+    compiler_consume(compiler, token_open_paren, "expected ( after function name");
+    if (compiler->current_token.type != token_close_paren) {
+        do {
+            compiler_consume(compiler, token_identifier, "expected a parameter name");
+            compiler_declare_var(compiler, &compiler->previous_token, true)->initialized = true;
+            compiler->function->arity += 1;
+        } while (compiler_match(compiler, token_comma));
+    }
+    compiler_consume(compiler, token_close_paren, "expected ) after function parameters");
+    compiler_consume(compiler, token_open_brace, "expected { before function body");
+    statement_block(compiler);
+    Value function = VALUE_FROM_FUNCTION(compiler->function);
+
+#ifdef DEBUG
+    chunk_debug(compiler->function->chunk, value_to_cstring(compiler->function->name));
+#endif
+
+    compiler_exit_scope(compiler, parent_count);
+    compiler->function = outerFunction;
+    uint8_t n = chunk_add_constant(compiler->function->chunk, &compiler->constants, function);
+    compiler_emit_bytes(compiler, op_constant, n);
+    if (compiler->scopes.count == 1) {
+        compiler_emit_bytes(compiler, op_define_global, var->index);
     }
 }
 
@@ -543,6 +594,7 @@ static void led_right_op(Compiler* compiler) {
 
 Denotation statements[] = {
     [token_for] = statement_for,
+    [token_fun] = statement_function_declaration,
     [token_if] = statement_if,
     [token_let] = statement_declaration,
     [token_open_brace] = statement_block,

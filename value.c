@@ -37,11 +37,13 @@ void value_print_debug(FILE* stream, Value v, bool debug) {
                     fputs(VALUE_TO_CSTRING(v), stream);
                 }
                 break;
-            case tag_function:
+            case tag_function: {
+                Function* f = VALUE_TO_FUNCTION(v);
                 fputs("<fn ", stream);
-                value_print_debug(stream, VALUE_TO_FUNCTION(v)->name, debug);
-                fputs(">", stream);
+                value_print_debug(stream, f->name, debug);
+                fprintf(stream, "/%zu>", f->arity);
                 break;
+            }
             default: fprintf(stream, "???");
         }
     }
