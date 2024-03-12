@@ -39,9 +39,8 @@ void value_print_debug(FILE* stream, Value v, bool debug) {
                 break;
             case tag_function: {
                 Function* f = VALUE_TO_FUNCTION(v);
-                fputs("<fn ", stream);
-                value_print_debug(stream, f->name, debug);
-                fprintf(stream, "/%zu>", f->arity);
+                value_print_debug(stream, f->name, false);
+                fprintf(stream, "/%zu", f->arity);
                 break;
             }
             default: fprintf(stream, "???");

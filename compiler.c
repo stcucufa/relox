@@ -20,6 +20,7 @@ typedef enum {
     precedence_addition,
     precedence_multiplication,
     precedence_exponentiation,
+    precedence_call,
     precedence_unary,
 } Precedence;
 
@@ -392,7 +393,7 @@ static void statement_function_declaration(Compiler* compiler) {
         return;
     }
     Token* name_token = &compiler->previous_token;
-    compiler_declare_var(compiler, name_token, false);
+    Var* var = compiler_declare_var(compiler, name_token, false);
     var->initialized = true;
 
     Function* outerFunction = compiler->function;
@@ -412,6 +413,10 @@ static void statement_function_declaration(Compiler* compiler) {
     compiler_consume(compiler, token_close_paren, "expected ) after function parameters");
     compiler_consume(compiler, token_open_brace, "expected { before function body");
     statement_block(compiler);
+
+    if (compiler->function->chunk->bytes.items[compiler->function->chunk->bytes.count - 1] != op_return) {
+        compiler_emit_bytes(compiler, op_nil, op_return);
+    }
     Value function = VALUE_FROM_FUNCTION(compiler->function);
 
 #ifdef DEBUG
@@ -458,6 +463,22 @@ static void statement_for(Compiler* compiler) {
     compiler_emit_byte(compiler, op_pop);
 }
 
+// return ;
+// return <expression> ;
+static void statement_return(Compiler* compiler) {
+    if (compiler_match(compiler, token_semicolon)) {
+        compiler_emit_bytes(compiler, op_nil, op_return);
+    } else {
+        if (compiler->scopes.count == 1) {
+            compiler_error(compiler, &compiler->current_token, "Cannot return a value from a script");
+        }
+        compiler_parse_expression(compiler, precedence_none);
+        compiler_consume(compiler, token_semicolon, "expected ; to end print statement");
+        compiler_emit_byte(compiler, op_return);
+    }
+}
+
+// print <expression> ;
 static void statement_print(Compiler* compiler) {
     if (!rules[compiler->current_token.type].nud) {
         compiler_error(compiler, &compiler->current_token, "expected an expression");
@@ -551,6 +572,18 @@ static void nud_unary_op(Compiler* compiler) {
     }
 }
 
+static void led_call(Compiler* compiler) {
+    uint8_t arg_count = 0;
+    if (compiler->current_token.type != token_close_paren) {
+        do {
+            compiler_parse_expression(compiler, precedence_none);
+            arg_count += 1;
+        } while (compiler_match(compiler, token_comma));
+    }
+    compiler_consume(compiler, token_close_paren, "expected ) after function arguments");
+    compiler_emit_bytes(compiler, op_call, arg_count);
+}
+
 static void led_and_or(Compiler* compiler) {
     TokenType t = compiler->previous_token.type;
     size_t jump = compiler_stub_jump(compiler, t == token_or ? op_jump_true : op_jump_false);
@@ -599,6 +632,7 @@ Denotation statements[] = {
     [token_let] = statement_declaration,
     [token_open_brace] = statement_block,
     [token_print] = statement_print,
+    [token_return] = statement_return,
     [token_var] = statement_declaration,
     [token_switch] = statement_switch,
     [token_while] = statement_while,
@@ -607,7 +641,7 @@ Denotation statements[] = {
 Rule rules[] = {
     [token_bang] = { nud_unary_op, 0, precedence_none },
     [token_quote] = { nud_unary_op, 0, precedence_none },
-    [token_open_paren] = { nud_group, 0, precedence_none },
+    [token_open_paren] = { nud_group, led_call, precedence_call },
     [token_close_paren] = { 0, 0, precedence_none },
     [token_star] = { 0, led_binary_op, precedence_multiplication },
     [token_plus] = { nud_unary_op, led_binary_op, precedence_addition },

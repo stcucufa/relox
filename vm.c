@@ -82,6 +82,7 @@ char const*const opcodes[opcode_count] = {
     [op_jump] = "jump",
     [op_jump_true] = "jump/true",
     [op_jump_false] = "jump/false",
+    [op_call] = "call",
     [op_return] = "return",
     [op_nop] = "nop",
 };
@@ -116,7 +117,8 @@ void chunk_debug(Chunk* chunk, const char* name) {
                 break;
             }
             case op_get_local:
-            case op_set_local: {
+            case op_set_local:
+            case op_call: {
                 uint8_t arg = chunk->bytes.items[i];
                 fprintf(stderr, "%02x     %s %d\n", arg, opcodes[opcode], arg);
                 i += 1;
@@ -148,7 +150,7 @@ void chunk_debug(Chunk* chunk, const char* name) {
 
 #endif
 
-static Result runtime_error(VM* vm, const char* format, ...) {
+static Result vm_runtime_error(VM* vm, const char* format, ...) {
     fputs("\n", stderr);
     va_list args;
     va_start(args, format);
@@ -156,7 +158,8 @@ static Result runtime_error(VM* vm, const char* format, ...) {
     va_end(args);
     fputs("\n", stderr);
 
-    // TODO fprintf(stderr, "[line %d] in script\n", line);
+    // FIXME 2L05 Improve error handling
+    // fprintf(stderr, "[line %d] in script\n", line);
     return result_runtime_error;
 }
 
@@ -205,6 +208,35 @@ Var* vm_add_global(VM* vm, Value v, bool mutable) {
     return var;
 }
 
+static Frame* vm_call(VM* vm, Value v, uint8_t args_count) {
+    if (!VALUE_IS_FUNCTION(v)) {
+        vm_runtime_error(vm, "Cannot call a non-function value.");
+        return 0;
+    }
+
+    Function* function = VALUE_TO_FUNCTION(v);
+    if (args_count != function->arity) {
+        vm_runtime_error(vm,
+            "Call with number of arguments mismatch: got %d, expected %d\n", args_count, function->arity);
+        return 0;
+    }
+
+    if (vm->frame_count == FRAMES_MAX) {
+        vm_runtime_error(vm, "Stack overflow");
+        return 0;
+    }
+
+    // FIXME 2L05 Improve error handling
+    // Show stack trace on error.
+
+    Frame* frame = &vm->frames[vm->frame_count];
+    vm->frame_count += 1;
+    frame->function = function;
+    frame->ip = function->chunk->bytes.items;
+    frame->slots = vm->sp - args_count;
+    return frame;
+}
+
 Result vm_run(VM* vm) {
     Frame* frame = &vm->frames[vm->frame_count - 1];
     frame->ip = frame->function->chunk->bytes.items;
@@ -220,27 +252,27 @@ Result vm_run(VM* vm) {
 
 #define BINARY_OP_NUMBER(op) do { \
     if (!VALUE_IS_NUMBER(PEEK(1))) { \
-        return runtime_error(vm, "First operand of arithmetic operation is not a number."); \
+        return vm_runtime_error(vm, "First operand of arithmetic operation is not a number."); \
     } \
     if (!VALUE_IS_NUMBER(PEEK(0))) { \
-        return runtime_error(vm, "Second operand of arithmetic operation is not a number."); \
+        return vm_runtime_error(vm, "Second operand of arithmetic operation is not a number."); \
     } \
     double v = POP().as_double; \
     POKE(0, VALUE_FROM_NUMBER(PEEK(0).as_double op v)); \
 } while (0)
 #define BINARY_OP_BOOLEAN(op) do { \
     if (!VALUE_IS_NUMBER(PEEK(1))) { \
-        return runtime_error(vm, "First operand of comparis operation is not a number."); \
+        return vm_runtime_error(vm, "First operand of comparis operation is not a number."); \
     } \
     if (!VALUE_IS_NUMBER(PEEK(0))) { \
-        return runtime_error(vm, "Second operand of comparison operation is not a number."); \
+        return vm_runtime_error(vm, "Second operand of comparison operation is not a number."); \
     } \
     double v = POP().as_double; \
     POKE(0, (PEEK(0).as_double op v) ? VALUE_TRUE : VALUE_FALSE); \
 } while (0)
 
     uint8_t opcode;
-    do {
+    while (true) {
 #ifdef DEBUG
         fprintf(stderr, "~~~ %4zu ", frame->ip - frame->function->chunk->bytes.items);
 #endif
@@ -253,7 +285,7 @@ Result vm_run(VM* vm) {
             case op_constant: PUSH(CONSTANT()); break;
             case op_negate:
                 if (!VALUE_IS_NUMBER(PEEK(0))) {
-                    return runtime_error(vm, "Operand for negate is not a number.");
+                    return vm_runtime_error(vm, "Operand for negate is not a number.");
                 }
                 POKE(0, VALUE_FROM_NUMBER(-PEEK(0).as_double));
                 break;
@@ -273,7 +305,7 @@ Result vm_run(VM* vm) {
             case op_divide: BINARY_OP_NUMBER(/); break;
             case op_exponent: {
                 if (!VALUE_IS_NUMBER(PEEK(0))) {
-                    return runtime_error(vm, "Exponent is not a number.");
+                    return vm_runtime_error(vm, "Exponent is not a number.");
                 }
                 double exponent = POP().as_double;
                 Value base = PEEK(0);
@@ -282,7 +314,7 @@ Result vm_run(VM* vm) {
                 } else if (VALUE_IS_STRING(base)) {
                     POKE(0, value_string_exponent(base, exponent));
                 } else {
-                    return runtime_error(vm, "Base of exponent is not a number or a string.");
+                    return vm_runtime_error(vm, "Base of exponent is not a number or a string.");
                 }
                 break;
             }
@@ -316,7 +348,7 @@ Result vm_run(VM* vm) {
                 } else if (VALUE_IS_NUMBER(v)) {
                     POKE(0, VALUE_FROM_NUMBER(fabs(v.as_double)));
                 } else {
-                    return runtime_error(vm, "Bars apply to number or string.");
+                    return vm_runtime_error(vm, "Bars apply to number or string.");
                 }
                 break;
             }
@@ -338,7 +370,7 @@ Result vm_run(VM* vm) {
                 uint8_t n = BYTE();
                 Value value = vm->globals.items[n];
                 if (VALUE_IS_NONE(value)) {
-                    return runtime_error(vm, "undefined var \"%s\"",
+                    return vm_runtime_error(vm, "undefined var \"%s\"",
                         value_to_cstring(hamt_get(&vm->global_scope, VALUE_FROM_INT(n))));
                 }
                 PUSH(value);
@@ -347,7 +379,7 @@ Result vm_run(VM* vm) {
             case op_set_global: {
                 uint8_t n = BYTE();
                 if (VALUE_IS_NONE(vm->globals.items[n])) {
-                    return runtime_error(vm, "undefined var \"%s\"",
+                    return vm_runtime_error(vm, "undefined var \"%s\"",
                         value_to_cstring(hamt_get(&vm->global_scope, VALUE_FROM_INT(n))));
                 }
                 vm->globals.items[n] = PEEK(0);
@@ -374,7 +406,29 @@ Result vm_run(VM* vm) {
                 break;
             }
 
+            case op_call: {
+                uint8_t args_count = BYTE();
+                frame = vm_call(vm, PEEK(args_count), args_count);
+                if (!frame) {
+                    return result_runtime_error;
+                }
+                break;
+            }
+
             case op_nop: break;
+
+            case op_return: {
+                Value result = POP();
+                vm->frame_count -= 1;
+                if (vm->frame_count == 0) {
+                    POP();
+                    return result_ok;
+                }
+                vm->sp = frame->slots;
+                PUSH(result);
+                frame = &vm->frames[vm->frame_count - 1];
+                break;
+            }
         }
 #ifdef DEBUG
         fprintf(stderr, "%s {", opcodes[opcode]);
@@ -384,15 +438,10 @@ Result vm_run(VM* vm) {
         }
         fprintf(stderr, " }\n");
 #endif
-    } while (opcode != op_return);
+    }
 
-#ifdef DEBUG
-    fprintf(stderr, "^^^ ");
-    value_print_debug(stderr, *vm->stack, true);
-    fputs("\n", stderr);
-#endif
-
-    return result_ok;
+    // unreachable
+    return result_runtime_error;
 
 #undef BYTE
 #undef WORD
