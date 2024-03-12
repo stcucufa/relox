@@ -11,6 +11,8 @@ typedef union {
     char as_bytes[8];
 } Value;
 
+typedef Value (*ForeignFunction)(size_t args_count, Value* args);
+
 enum {
     tag_nan = 0,
     tag_nil = 1,
@@ -29,6 +31,7 @@ enum {
 #define VALUE_EPSILON_MASK (VALUE_QNAN_MASK | tag_string)
 #define VALUE_OBJECT_MASK 0x0000fffffffffff8
 #define VALUE_SHORT_STRING_MASK 0x8000000000000004
+#define VALUE_FOREIGN_FUNCTION_MASK 0x8000000000000005
 #define VALUE_SHORT_STRING_LENGTH_MASK 0x38
 
 #define VALUE_EQUAL(v, w) (v.as_int == w.as_int)
@@ -41,6 +44,8 @@ enum {
 #define VALUE_EPSILON (Value){ .as_int = VALUE_EPSILON_MASK }
 #define VALUE_FROM_STRING(x) (Value){ .as_int = (uintptr_t)(x) | VALUE_QNAN_MASK | tag_string }
 #define VALUE_FROM_FUNCTION(x) (Value){ .as_int = (uintptr_t)(x) | VALUE_QNAN_MASK | tag_function }
+#define VALUE_FROM_FOREIGN_FUNCTION(x) (Value){ .as_int = (uintptr_t)(x) | VALUE_QNAN_MASK | \
+    VALUE_FOREIGN_FUNCTION_MASK }
 #define VALUE_FROM_POINTER(x) (Value){ .as_int = (uintptr_t)(x) | VALUE_QNAN_MASK | tag_pointer }
 #define VALUE_FROM_NUMBER(x) (Value){ .as_double = (x) }
 #define VALUE_FROM_INT(x) (Value){ .as_double = (double)(x) }
@@ -57,6 +62,8 @@ enum {
 #define VALUE_IS_SHORT_STRING(v) (((v).as_int & VALUE_SHORT_STRING_MASK) == VALUE_SHORT_STRING_MASK)
 #define VALUE_IS_STRING(v) (VALUE_TAG(v) == tag_string)
 #define VALUE_IS_FUNCTION(v) (VALUE_TAG(v) == tag_function)
+#define VALUE_IS_FOREIGN_FUNCTION(v) (((v).as_int & VALUE_FOREIGN_FUNCTION_MASK) == \
+    VALUE_FOREIGN_FUNCTION_MASK)
 #define VALUE_IS_POINTER(v) (VALUE_TAG(v) == tag_pointer)
 #define VALUE_IS_NUMBER(v) (((v).as_int & VALUE_QNAN_MASK) != VALUE_QNAN_MASK)
 
@@ -64,6 +71,7 @@ enum {
 #define VALUE_TO_CSTRING(v) (VALUE_TO_STRING(v)->chars)
 #define VALUE_TO_HAMT(v) ((HAMT*)((v).as_int & VALUE_OBJECT_MASK))
 #define VALUE_TO_FUNCTION(v) ((Function*)((v).as_int & VALUE_OBJECT_MASK))
+#define VALUE_TO_FOREIGN_FUNCTION(v) ((ForeignFunction*)((v).as_int & VALUE_OBJECT_MASK))
 #define VALUE_TO_POINTER(v) ((v).as_int & VALUE_OBJECT_MASK)
 #define VALUE_TO_INT(v) ((int64_t)(v).as_double)
 #define VALUE_TO_HAMT_NODE_BITMAP(v) ((uint32_t)(v).as_int)

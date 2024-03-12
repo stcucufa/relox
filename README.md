@@ -3,6 +3,10 @@ III](https://craftinginterpreters.com/a-bytecode-virtual-machine.html)).
 
 ## Differences from the book
 
+The book version is at
+[https://github.com/munificent/craftinginterpreters/](https://github.com/munificent/craftinginterpreters/)
+(for reference).
+
 * [Chapter 14 (Chunks of Bytecode)](https://craftinginterpreters.com/chunks-of-bytecode.html): arrays for bytes, numbers and values.
 * [Chapter 15 (A Virtual Machine)](https://craftinginterpreters.com/a-virtual-machine.html): no big difference.
 * [Chapter 16 (Scanning on Demand)](https://craftinginterpreters.com/scanning-on-demand.html): string interpolation (really implemented in chapter 19); some extra tokens for new operators and ∞.

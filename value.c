@@ -38,9 +38,13 @@ void value_print_debug(FILE* stream, Value v, bool debug) {
                 }
                 break;
             case tag_function: {
-                Function* f = VALUE_TO_FUNCTION(v);
-                value_print_debug(stream, f->name, false);
-                fprintf(stream, "/%zu", f->arity);
+                if (VALUE_IS_FOREIGN_FUNCTION(v)) {
+                    fputs("foreign function", stream);
+                } else {
+                    Function* f = VALUE_TO_FUNCTION(v);
+                    value_print_debug(stream, f->name, false);
+                    fprintf(stream, "/%zu", f->arity);
+                }
                 break;
             }
             default: fprintf(stream, "???");
@@ -239,7 +243,7 @@ void value_free_object(Value v) {
         fprintf(stderr, "--- value_free_object() string \"%s\"\n", VALUE_TO_CSTRING(v));
 #endif
         free(VALUE_TO_STRING(v));
-    } else if (VALUE_IS_FUNCTION(v)) {
+    } else if (VALUE_IS_FUNCTION(v) && !VALUE_IS_FOREIGN_FUNCTION(v)) {
         function_free(VALUE_TO_FUNCTION(v));
     } else if (VALUE_IS_POINTER(v)) {
 #ifdef DEBUG

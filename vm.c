@@ -5,6 +5,8 @@
 #include <math.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <string.h>
+#include <time.h>
 
 #include "compiler.h"
 #include "vm.h"
@@ -214,27 +216,35 @@ static Frame* vm_call(VM* vm, Value v, uint8_t args_count) {
         return 0;
     }
 
-    Function* function = VALUE_TO_FUNCTION(v);
-    if (args_count != function->arity) {
-        vm_runtime_error(vm,
-            "Call with number of arguments mismatch: got %d, expected %d\n", args_count, function->arity);
-        return 0;
+    if (VALUE_IS_FOREIGN_FUNCTION(v)) {
+        Value result = (*VALUE_TO_FOREIGN_FUNCTION(v))(args_count, vm->sp - args_count);
+        vm->sp += args_count;
+        *vm->sp++ = result;
+        return &vm->frames[vm->frame_count - 1];
+
+    } else {
+        Function* function = VALUE_TO_FUNCTION(v);
+        if (args_count != function->arity) {
+            vm_runtime_error(vm,
+                "Call with number of arguments mismatch: got %d, expected %d\n", args_count, function->arity);
+            return 0;
+        }
+
+        if (vm->frame_count == FRAMES_MAX) {
+            vm_runtime_error(vm, "Stack overflow");
+            return 0;
+        }
+
+        // FIXME 2L05 Improve error handling
+        // Show stack trace on error.
+
+        Frame* frame = &vm->frames[vm->frame_count];
+        vm->frame_count += 1;
+        frame->function = function;
+        frame->ip = function->chunk->bytes.items;
+        frame->slots = vm->sp - args_count;
+        return frame;
     }
-
-    if (vm->frame_count == FRAMES_MAX) {
-        vm_runtime_error(vm, "Stack overflow");
-        return 0;
-    }
-
-    // FIXME 2L05 Improve error handling
-    // Show stack trace on error.
-
-    Frame* frame = &vm->frames[vm->frame_count];
-    vm->frame_count += 1;
-    frame->function = function;
-    frame->ip = function->chunk->bytes.items;
-    frame->slots = vm->sp - args_count;
-    return frame;
 }
 
 Result vm_run(VM* vm) {
@@ -262,7 +272,7 @@ Result vm_run(VM* vm) {
 } while (0)
 #define BINARY_OP_BOOLEAN(op) do { \
     if (!VALUE_IS_NUMBER(PEEK(1))) { \
-        return vm_runtime_error(vm, "First operand of comparis operation is not a number."); \
+        return vm_runtime_error(vm, "First operand of comparison operation is not a number."); \
     } \
     if (!VALUE_IS_NUMBER(PEEK(0))) { \
         return vm_runtime_error(vm, "Second operand of comparison operation is not a number."); \
@@ -454,6 +464,18 @@ Result vm_run(VM* vm) {
 #undef BINARY_OP_BOOLEAN
 }
 
+static void vm_foreign_function(VM* vm, const char* name, ForeignFunction function) {
+    Var* var = vm_var_new(vm, vm->globals.count, false, true);
+    Value v = value_copy_string(name, strlen(name));
+    hamt_set(&vm->global_scope, v, VALUE_FROM_POINTER(var));
+    hamt_set(&vm->global_scope, VALUE_FROM_NUMBER(var->index), v);
+    value_array_push(&vm->globals, VALUE_FROM_FOREIGN_FUNCTION(function));
+}
+
+static Value foreign_clock(size_t arg_count, Value* args) {
+    return VALUE_FROM_NUMBER((double)clock() / CLOCKS_PER_SEC);
+}
+
 Result vm_compile_and_run(VM* vm, const char* source) {
     Function* function = function_new();
     function->chunk->vm = vm;
@@ -461,6 +483,9 @@ Result vm_compile_and_run(VM* vm, const char* source) {
     hamt_init(&vm->strings);
     value_array_init(&vm->objects);
     value_array_init(&vm->globals);
+
+    vm_foreign_function(vm, "clock", foreign_clock);
+
     if (!compile_function(source, function)) {
         function_free(function);
         return result_compile_error;
