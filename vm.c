@@ -217,8 +217,7 @@ static Frame* vm_call(VM* vm, Value v, uint8_t args_count) {
     }
 
     if (VALUE_IS_FOREIGN_FUNCTION(v)) {
-        ForeignFunction* f = VALUE_TO_FOREIGN_FUNCTION(v);
-        Value result = (*f)(args_count, vm->sp - args_count);
+        Value result = (*VALUE_TO_FOREIGN_FUNCTION(v))(args_count, vm->sp - args_count);
         vm->sp += args_count;
         *vm->sp++ = result;
         return &vm->frames[vm->frame_count - 1];
@@ -226,8 +225,8 @@ static Frame* vm_call(VM* vm, Value v, uint8_t args_count) {
     } else {
         Function* function = VALUE_TO_FUNCTION(v);
         if (args_count != function->arity) {
-            vm_runtime_error(vm,
-                "Call with number of arguments mismatch: got %d, expected %d\n", args_count, function->arity);
+            vm_runtime_error(vm, "Call with number of arguments mismatch: got %d, expected %d\n",
+                args_count, function->arity);
             return 0;
         }
 
@@ -243,7 +242,18 @@ static Frame* vm_call(VM* vm, Value v, uint8_t args_count) {
         vm->frame_count += 1;
         frame->function = function;
         frame->ip = function->chunk->bytes.items;
-        frame->slots = vm->sp - args_count;
+        frame->slots = vm->sp - args_count - 1;
+
+#ifdef DEBUG
+        fputs("&&& vm_call ", stderr);
+        value_print_debug(stderr, function->name, false);
+        for (size_t i = 0; i <= function->arity; ++i) {
+            fputs(" ", stderr);
+            value_print_debug(stderr, frame->slots[i], false);
+        }
+        fputs("\n", stderr);
+#endif
+
         return frame;
     }
 }
@@ -501,11 +511,11 @@ Result vm_compile_and_run(VM* vm, const char* source) {
     chunk_debug(function->chunk, "Top-level function");
 #endif
 
+    vm->sp = vm->stack;
     Frame* frame = &vm->frames[vm->frame_count];
     frame->function = function;
-    frame->slots = vm->stack;
+    frame->slots = vm->sp;
     vm->frame_count = 1;
-    vm->sp = vm->stack;
     Result result = vm_run(vm);
     function_free(function);
     return result;

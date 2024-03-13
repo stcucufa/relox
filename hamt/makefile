@@ -1,5 +1,5 @@
 TARGET =	hamt-test
-OBJECTS =	../hamt.o ../object.o ../value.o main.o
+OBJECTS =	../hamt.o ../value.o main.o
 CFLAGS =	-Wall -pedantic -g -DDEBUG
 LDFLAGS =	-lm
 

@@ -1,6 +1,7 @@
 TARGET =	relox
 OBJECTS =	array.o compiler.o hamt.o lexer.o main.o value.o vm.o
-CFLAGS =	-Wall -pedantic -g -DDEBUG
+OPT_FLAGS =	-g -DDEBUG
+CFLAGS =	-Wall -pedantic $(OPT_FLAGS)
 LDFLAGS =	-lm
 
 $(TARGET):	$(OBJECTS)

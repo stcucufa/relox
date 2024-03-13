@@ -401,6 +401,7 @@ static void statement_function_declaration(Compiler* compiler) {
     compiler->function->name = value_copy_string(name_token->start, name_token->length);
     compiler->function->chunk->vm = outerFunction->chunk->vm;
     size_t parent_count = compiler_enter_scope(compiler);
+    compiler->locals_count += 1;
 
     compiler_consume(compiler, token_open_paren, "expected ( after function name");
     if (compiler->current_token.type != token_close_paren) {
