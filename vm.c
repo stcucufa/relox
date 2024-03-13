@@ -243,17 +243,6 @@ static Frame* vm_call(VM* vm, Value v, uint8_t args_count) {
         frame->function = function;
         frame->ip = function->chunk->bytes.items;
         frame->slots = vm->sp - args_count - 1;
-
-#ifdef DEBUG
-        fputs("&&& vm_call ", stderr);
-        value_print_debug(stderr, function->name, false);
-        for (size_t i = 0; i <= function->arity; ++i) {
-            fputs(" ", stderr);
-            value_print_debug(stderr, frame->slots[i], false);
-        }
-        fputs("\n", stderr);
-#endif
-
         return frame;
     }
 }
@@ -295,7 +284,7 @@ Result vm_run(VM* vm) {
     uint8_t opcode;
     while (true) {
 #ifdef DEBUG
-        fprintf(stderr, "~~~ %4zu ", frame->ip - frame->function->chunk->bytes.items);
+        fprintf(stderr, "~~~ %4zu %4zu ", vm->frame_count, frame->ip - frame->function->chunk->bytes.items);
 #endif
         switch (opcode = BYTE()) {
             case op_nil: PUSH(VALUE_NIL); break;
