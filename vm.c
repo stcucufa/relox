@@ -210,6 +210,11 @@ Var* vm_add_global(VM* vm, Value v, bool mutable) {
     return var;
 }
 
+static inline int16_t frame_word(Frame* frame) {
+    frame->ip += 2;
+    return (int16_t)(*(frame->ip - 2) << 8) | *(frame->ip - 1);
+}
+
 static Frame* vm_call(VM* vm, Value v, uint8_t args_count) {
     if (!VALUE_IS_FUNCTION(v)) {
         vm_runtime_error(vm, "Cannot call a non-function value.");
@@ -252,7 +257,7 @@ Result vm_run(VM* vm) {
     frame->ip = frame->function->chunk->bytes.items;
 
 #define BYTE() *frame->ip++
-#define WORD() (((*frame->ip++) << 8) | (*frame->ip++))
+#define WORD() frame_word(frame)
 #define CONSTANT() frame->function->chunk->values.items[BYTE()]
 
 #define PUSH(x) *vm->sp++ = (x)
@@ -398,9 +403,9 @@ Result vm_run(VM* vm) {
             case op_get_local: PUSH(frame->slots[BYTE()]); break;
             case op_set_local: frame->slots[BYTE()] = PEEK(0); break;
 
-            case op_jump: frame->ip += (int16_t)WORD(); break;
+            case op_jump: frame->ip += WORD(); break;
             case op_jump_true: {
-                ptrdiff_t offset = (int16_t)WORD();
+                ptrdiff_t offset = WORD();
                 Value p = PEEK(0);
                 if (!(VALUE_IS_FALSE(p) || VALUE_IS_EPSILON(p) || p.as_double == 0)) {
                     frame->ip += offset;
@@ -408,7 +413,7 @@ Result vm_run(VM* vm) {
                 break;
             }
             case op_jump_false: {
-                ptrdiff_t offset = (int16_t)WORD();
+                ptrdiff_t offset = WORD();
                 Value p = PEEK(0);
                 if (VALUE_IS_FALSE(p) || VALUE_IS_EPSILON(p) || p.as_double == 0) {
                     frame->ip += offset;
@@ -431,7 +436,7 @@ Result vm_run(VM* vm) {
                 Value result = POP();
                 vm->frame_count -= 1;
                 if (vm->frame_count == 0) {
-                    POP();
+                    (void)POP();
                     return result_ok;
                 }
                 vm->sp = frame->slots;
