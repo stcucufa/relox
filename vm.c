@@ -217,7 +217,8 @@ static Frame* vm_call(VM* vm, Value v, uint8_t args_count) {
     }
 
     if (VALUE_IS_FOREIGN_FUNCTION(v)) {
-        Value result = (*VALUE_TO_FOREIGN_FUNCTION(v))(args_count, vm->sp - args_count);
+        ForeignFunction* f = VALUE_TO_FOREIGN_FUNCTION(v);
+        Value result = (*f)(args_count, vm->sp - args_count);
         vm->sp += args_count;
         *vm->sp++ = result;
         return &vm->frames[vm->frame_count - 1];
@@ -472,8 +473,12 @@ static void vm_foreign_function(VM* vm, const char* name, ForeignFunction functi
     value_array_push(&vm->globals, VALUE_FROM_FOREIGN_FUNCTION(function));
 }
 
-static Value foreign_clock(size_t arg_count, Value* args) {
+FOREIGN_FUNCTION foreign_clock(size_t arg_count, Value* args) {
     return VALUE_FROM_NUMBER((double)clock() / CLOCKS_PER_SEC);
+}
+
+FOREIGN_FUNCTION foreign_cos(size_t arg_count, Value* args) {
+    return VALUE_FROM_NUMBER((double)cos(args[0].as_double));
 }
 
 Result vm_compile_and_run(VM* vm, const char* source) {
@@ -485,6 +490,7 @@ Result vm_compile_and_run(VM* vm, const char* source) {
     value_array_init(&vm->globals);
 
     vm_foreign_function(vm, "clock", foreign_clock);
+    vm_foreign_function(vm, "cos", foreign_cos);
 
     if (!compile_function(source, function)) {
         function_free(function);

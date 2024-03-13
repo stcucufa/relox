@@ -11,7 +11,9 @@ typedef union {
     char as_bytes[8];
 } Value;
 
-typedef Value (*ForeignFunction)(size_t args_count, Value* args);
+typedef Value ForeignFunction(size_t args_count, Value* args);
+
+#define FOREIGN_FUNCTION __attribute((aligned(8))) static Value
 
 enum {
     tag_nan = 0,
