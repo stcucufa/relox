@@ -287,7 +287,7 @@ static void statement_switch(Compiler* compiler) {
     ValueArray breaks;
     value_array_init(&breaks);
 
-    size_t skip, fallthrough;
+    size_t skip, fallthrough = 0;
     bool did_fallthrough = false;
     while (compiler_match(compiler, token_case)) {
         if (breaks.count > 0) {
