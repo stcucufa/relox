@@ -386,7 +386,6 @@ static void statement_declaration(Compiler* compiler) {
 }
 
 // fun <identifier> ( ) { <block> }
-// fun foo() { print "ok"; }
 static void statement_function_declaration(Compiler* compiler) {
     compiler_consume(compiler, token_identifier, "expected function name");
     if (compiler->error) {
