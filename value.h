@@ -5,13 +5,15 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "object.h"
-
 typedef union {
     double as_double;
     uint64_t as_int;
     char as_bytes[8];
 } Value;
+
+typedef Value ForeignFunction(size_t args_count, Value* args);
+
+#define FOREIGN_FUNCTION __attribute((aligned(8))) static Value
 
 enum {
     tag_nan = 0,
@@ -19,8 +21,9 @@ enum {
     tag_false = 2,
     tag_true = 3,
     tag_string = 4,
-    tag_pointer = 5,
-    tag_count = 6,
+    tag_function = 5,
+    tag_pointer = 6,
+    tag_count = 7,
     tag_mask = 7,
 };
 
@@ -30,6 +33,7 @@ enum {
 #define VALUE_EPSILON_MASK (VALUE_QNAN_MASK | tag_string)
 #define VALUE_OBJECT_MASK 0x0000fffffffffff8
 #define VALUE_SHORT_STRING_MASK 0x8000000000000004
+#define VALUE_FOREIGN_FUNCTION_MASK 0x8000000000000005
 #define VALUE_SHORT_STRING_LENGTH_MASK 0x38
 
 #define VALUE_EQUAL(v, w) (v.as_int == w.as_int)
@@ -41,6 +45,9 @@ enum {
 #define VALUE_HAMT_NODE (Value){ .as_int = VALUE_HAMT_NODE_MASK }
 #define VALUE_EPSILON (Value){ .as_int = VALUE_EPSILON_MASK }
 #define VALUE_FROM_STRING(x) (Value){ .as_int = (uintptr_t)(x) | VALUE_QNAN_MASK | tag_string }
+#define VALUE_FROM_FUNCTION(x) (Value){ .as_int = (uintptr_t)(x) | VALUE_QNAN_MASK | tag_function }
+#define VALUE_FROM_FOREIGN_FUNCTION(x) (Value){ .as_int = (uintptr_t)(x) | VALUE_QNAN_MASK | \
+    VALUE_FOREIGN_FUNCTION_MASK }
 #define VALUE_FROM_POINTER(x) (Value){ .as_int = (uintptr_t)(x) | VALUE_QNAN_MASK | tag_pointer }
 #define VALUE_FROM_NUMBER(x) (Value){ .as_double = (x) }
 #define VALUE_FROM_INT(x) (Value){ .as_double = (double)(x) }
@@ -56,12 +63,17 @@ enum {
 #define VALUE_IS_EPSILON(v) ((v).as_int == VALUE_EPSILON_MASK)
 #define VALUE_IS_SHORT_STRING(v) (((v).as_int & VALUE_SHORT_STRING_MASK) == VALUE_SHORT_STRING_MASK)
 #define VALUE_IS_STRING(v) (VALUE_TAG(v) == tag_string)
+#define VALUE_IS_FUNCTION(v) (VALUE_TAG(v) == tag_function)
+#define VALUE_IS_FOREIGN_FUNCTION(v) (((v).as_int & VALUE_FOREIGN_FUNCTION_MASK) == \
+    VALUE_FOREIGN_FUNCTION_MASK)
 #define VALUE_IS_POINTER(v) (VALUE_TAG(v) == tag_pointer)
 #define VALUE_IS_NUMBER(v) (((v).as_int & VALUE_QNAN_MASK) != VALUE_QNAN_MASK)
 
 #define VALUE_TO_STRING(v) ((String*)((v).as_int & VALUE_OBJECT_MASK))
 #define VALUE_TO_CSTRING(v) (VALUE_TO_STRING(v)->chars)
 #define VALUE_TO_HAMT(v) ((HAMT*)((v).as_int & VALUE_OBJECT_MASK))
+#define VALUE_TO_FUNCTION(v) ((Function*)((v).as_int & VALUE_OBJECT_MASK))
+#define VALUE_TO_FOREIGN_FUNCTION(v) ((ForeignFunction*)((v).as_int & VALUE_OBJECT_MASK))
 #define VALUE_TO_POINTER(v) ((v).as_int & VALUE_OBJECT_MASK)
 #define VALUE_TO_INT(v) ((int64_t)(v).as_double)
 #define VALUE_TO_HAMT_NODE_BITMAP(v) ((uint32_t)(v).as_int)
@@ -77,5 +89,31 @@ Value value_concatenate_strings(Value, Value);
 Value value_string_exponent(Value, double);
 uint32_t value_hash(Value);
 void value_free_object(Value);
+
+uint32_t bytes_hash(char*, size_t);
+
+typedef struct {
+    size_t length;
+    uint32_t hash;
+    char chars[];
+} String;
+
+String* string_new(size_t);
+String* string_copy(const char*, size_t);
+String* string_concatenate(String*, String*);
+String* string_exponent(String*, double);
+String* string_from_number(double);
+bool string_equal(String*, String*);
+
+typedef struct Chunk Chunk;
+
+typedef struct {
+    size_t arity;
+    struct Chunk* chunk;
+    Value name;
+} Function;
+
+Function* function_new(void);
+void function_free(Function*);
 
 #endif

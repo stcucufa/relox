@@ -4,8 +4,8 @@
 #include "compiler.h"
 #include "hamt.h"
 #include "lexer.h"
-#include "object.h"
 #include "value.h"
+#include "vm.h"
 
 struct Compiler;
 
@@ -20,6 +20,7 @@ typedef enum {
     precedence_addition,
     precedence_multiplication,
     precedence_exponentiation,
+    precedence_call,
     precedence_unary,
 } Precedence;
 
@@ -35,7 +36,7 @@ Denotation statements[];
 Rule rules[];
 
 typedef struct Compiler {
-    Chunk* chunk;
+    Function* function;
     HAMT constants;
     ValueArray scopes;
     size_t locals_count;
@@ -59,23 +60,23 @@ static void compiler_error(Compiler* compiler, Token* token, const char* message
 }
 
 static void compiler_emit_byte(Compiler* compiler, uint8_t byte) {
-    chunk_add_byte(compiler->chunk, byte, compiler->lexer->line);
+    chunk_add_byte(compiler->function->chunk, byte, compiler->lexer->line);
 }
 
 static void compiler_emit_bytes(Compiler* compiler, uint8_t x, uint8_t y) {
-    chunk_add_byte(compiler->chunk, x, compiler->lexer->line);
-    chunk_add_byte(compiler->chunk, y, compiler->lexer->line);
+    chunk_add_byte(compiler->function->chunk, x, compiler->lexer->line);
+    chunk_add_byte(compiler->function->chunk, y, compiler->lexer->line);
 }
 
 static void compiler_emit_constant(Compiler* compiler, Value value) {
     compiler_emit_byte(compiler, op_constant);
-    uint8_t n = (uint8_t)chunk_add_constant(compiler->chunk, &compiler->constants, value);
+    uint8_t n = (uint8_t)chunk_add_constant(compiler->function->chunk, &compiler->constants, value);
     compiler_emit_byte(compiler, n);
 }
 
 static void compiler_emit_jump(Compiler* compiler, size_t to) {
     compiler_emit_byte(compiler, op_jump);
-    ptrdiff_t offset = to - compiler->chunk->bytes.count - 2;
+    ptrdiff_t offset = to - compiler->function->chunk->bytes.count - 2;
     compiler_emit_byte(compiler, (uint8_t)(offset >> 8));
     compiler_emit_byte(compiler, (uint8_t)offset);
 }
@@ -147,17 +148,17 @@ static void compiler_string_constant(Compiler* compiler, Token* token) {
         return;
     }
     Value string = value_copy_string(token->start + 1, token->length - trim);
-    string = vm_add_object(compiler->chunk->vm, string);
-    uint8_t n = chunk_add_constant(compiler->chunk, &compiler->constants, string);
+    string = vm_add_object(compiler->function->chunk->vm, string);
+    uint8_t n = chunk_add_constant(compiler->function->chunk, &compiler->constants, string);
     compiler_emit_bytes(compiler, op_constant, n);
 }
 
 static Var* compiler_declare_var(Compiler* compiler, Token* token, bool mutable) {
     Value string = value_copy_string(token->start, token->length);
-    Value v = vm_add_object(compiler->chunk->vm, string);
+    Value v = vm_add_object(compiler->function->chunk->vm, string);
     size_t i = compiler->scopes.count - 1;
     if (i == 0) {
-        return vm_add_global(compiler->chunk->vm, v, mutable);
+        return vm_add_global(compiler->function->chunk->vm, v, mutable);
     }
 
     // We are in a local scope (there is more than one scope in the stack).
@@ -173,7 +174,7 @@ static Var* compiler_declare_var(Compiler* compiler, Token* token, bool mutable)
         return 0;
     }
 
-    Var* var = vm_var_new(compiler->chunk->vm, compiler->locals_count, mutable, false);
+    Var* var = vm_var_new(compiler->function->chunk->vm, compiler->locals_count, mutable, false);
     compiler->locals_count += 1;
     scope = hamt_with(scope, v, VALUE_FROM_POINTER(var));
     scope = hamt_with(scope, VALUE_FROM_INT(var->index), v);
@@ -183,10 +184,10 @@ static Var* compiler_declare_var(Compiler* compiler, Token* token, bool mutable)
 
 static Var* compiler_find_var(Compiler* compiler, Token* token) {
     Value string = value_copy_string(token->start, token->length);
-    Value v = vm_add_object(compiler->chunk->vm, string);
+    Value v = vm_add_object(compiler->function->chunk->vm, string);
     size_t i = compiler->scopes.count - 1;
     if (i == 0) {
-        return vm_add_global(compiler->chunk->vm, v, token->type == token_let);
+        return vm_add_global(compiler->function->chunk->vm, v, token->type == token_let);
     }
     Value w = hamt_get(VALUE_TO_HAMT(compiler->scopes.items[i]), v);
     if (VALUE_IS_NONE(w)) {
@@ -212,34 +213,42 @@ static size_t compiler_stub_jump(Compiler* compiler, Opcode op) {
     compiler_emit_byte(compiler, op);
     compiler_emit_byte(compiler, 0xde);
     compiler_emit_byte(compiler, 0xad);
-    return compiler->chunk->bytes.count;
+    return compiler->function->chunk->bytes.count;
 }
 
 static void compiler_patch_jump(Compiler* compiler, size_t dest) {
-    ptrdiff_t offset = (compiler->chunk->bytes.count - dest);
-    compiler->chunk->bytes.items[dest - 2] = (uint8_t)(offset >> 8);
-    compiler->chunk->bytes.items[dest - 1] = (uint8_t)offset;
+    ptrdiff_t offset = (compiler->function->chunk->bytes.count - dest);
+    compiler->function->chunk->bytes.items[dest - 2] = (uint8_t)(offset >> 8);
+    compiler->function->chunk->bytes.items[dest - 1] = (uint8_t)offset;
 }
 
-static void statement_block(Compiler* compiler) {
+static size_t compiler_enter_scope(Compiler* compiler) {
     HAMT* parent_scope = VALUE_TO_HAMT(compiler->scopes.items[compiler->scopes.count - 1]);
     size_t parent_count = compiler->locals_count;
     value_array_push(&compiler->scopes, VALUE_FROM_POINTER(parent_scope));
+    return parent_count;
+}
+
+static void compiler_exit_scope(Compiler* compiler, size_t parent_count) {
+    for (; compiler->locals_count > parent_count; --compiler->locals_count) {
+        compiler_emit_byte(compiler, op_pop);
+    }
+    HAMT* child_scope = VALUE_TO_HAMT(value_array_pop(&compiler->scopes));
+    HAMT* parent_scope = VALUE_TO_HAMT(compiler->scopes.items[compiler->scopes.count - 1]);
+    if (child_scope != parent_scope) {
+        hamt_free(child_scope);
+    }
+}
+
+static void statement_block(Compiler* compiler) {
+    size_t parent_count = compiler_enter_scope(compiler);
     while (!compiler->error && compiler->current_token.type != token_close_brace) {
         compiler_parse_statement(compiler);
     }
     if (!compiler->error) {
         compiler_consume(compiler, token_close_brace, "expected } to end a block");
     }
-
-    for (; compiler->locals_count > parent_count; --compiler->locals_count) {
-        compiler_emit_byte(compiler, op_pop);
-    }
-
-    HAMT* child_scope = VALUE_TO_HAMT(value_array_pop(&compiler->scopes));
-    if (child_scope != parent_scope) {
-        hamt_free(child_scope);
-    }
+    compiler_exit_scope(compiler, parent_count);
 }
 
 // if <predicate-expr> <block-statement>
@@ -278,7 +287,7 @@ static void statement_switch(Compiler* compiler) {
     ValueArray breaks;
     value_array_init(&breaks);
 
-    size_t skip, fallthrough;
+    size_t skip, fallthrough = 0;
     bool did_fallthrough = false;
     while (compiler_match(compiler, token_case)) {
         if (breaks.count > 0) {
@@ -342,7 +351,7 @@ static void statement_switch(Compiler* compiler) {
 
 // while <predicate-expr> <block-statement>
 static void statement_while(Compiler* compiler) {
-    size_t predicate = compiler->chunk->bytes.count;
+    size_t predicate = compiler->function->chunk->bytes.count;
     compiler_parse_expression(compiler, precedence_none);
     if (!compiler->error) {
         size_t jump = compiler_stub_jump(compiler, op_jump_false);
@@ -376,6 +385,53 @@ static void statement_declaration(Compiler* compiler) {
     }
 }
 
+// fun <identifier> ( ) { <block> }
+static void statement_function_declaration(Compiler* compiler) {
+    compiler_consume(compiler, token_identifier, "expected function name");
+    if (compiler->error) {
+        return;
+    }
+    Token* name_token = &compiler->previous_token;
+    Var* var = compiler_declare_var(compiler, name_token, false);
+    var->initialized = true;
+
+    Function* outerFunction = compiler->function;
+    compiler->function = function_new();
+    compiler->function->name = value_copy_string(name_token->start, name_token->length);
+    compiler->function->chunk->vm = outerFunction->chunk->vm;
+    size_t parent_count = compiler_enter_scope(compiler);
+    compiler->locals_count += 1;
+
+    compiler_consume(compiler, token_open_paren, "expected ( after function name");
+    if (compiler->current_token.type != token_close_paren) {
+        do {
+            compiler_consume(compiler, token_identifier, "expected a parameter name");
+            compiler_declare_var(compiler, &compiler->previous_token, true)->initialized = true;
+            compiler->function->arity += 1;
+        } while (compiler_match(compiler, token_comma));
+    }
+    compiler_consume(compiler, token_close_paren, "expected ) after function parameters");
+    compiler_consume(compiler, token_open_brace, "expected { before function body");
+    statement_block(compiler);
+
+    if (compiler->function->chunk->bytes.items[compiler->function->chunk->bytes.count - 1] != op_return) {
+        compiler_emit_bytes(compiler, op_nil, op_return);
+    }
+    Value function = VALUE_FROM_FUNCTION(compiler->function);
+
+#ifdef DEBUG
+    chunk_debug(compiler->function->chunk, value_to_cstring(compiler->function->name));
+#endif
+
+    compiler_exit_scope(compiler, parent_count);
+    compiler->function = outerFunction;
+    uint8_t n = chunk_add_constant(compiler->function->chunk, &compiler->constants, function);
+    compiler_emit_bytes(compiler, op_constant, n);
+    if (compiler->scopes.count == 1) {
+        compiler_emit_bytes(compiler, op_define_global, var->index);
+    }
+}
+
 // for ( <expr> | <declaration>; <predicate-expr>; <increment-expr> ) <block-statement>
 static void statement_for(Compiler* compiler) {
     compiler_consume(compiler, token_open_paren, "expected ( after for");
@@ -387,7 +443,7 @@ static void statement_for(Compiler* compiler) {
         compiler_consume(compiler, token_semicolon, "expected ; after initialization part of for");
     }
 
-    size_t predicate = compiler->chunk->bytes.count;
+    size_t predicate = compiler->function->chunk->bytes.count;
     compiler_parse_expression(compiler, precedence_none);
     compiler_consume(compiler, token_semicolon, "expected ; after predicate part of for");
     size_t exit_jump = compiler_stub_jump(compiler, op_jump_false);
@@ -407,6 +463,22 @@ static void statement_for(Compiler* compiler) {
     compiler_emit_byte(compiler, op_pop);
 }
 
+// return ;
+// return <expression> ;
+static void statement_return(Compiler* compiler) {
+    if (compiler_match(compiler, token_semicolon)) {
+        compiler_emit_bytes(compiler, op_nil, op_return);
+    } else {
+        if (compiler->scopes.count == 1) {
+            compiler_error(compiler, &compiler->current_token, "Cannot return a value from a script");
+        }
+        compiler_parse_expression(compiler, precedence_none);
+        compiler_consume(compiler, token_semicolon, "expected ; to end print statement");
+        compiler_emit_byte(compiler, op_return);
+    }
+}
+
+// print <expression> ;
 static void statement_print(Compiler* compiler) {
     if (!rules[compiler->current_token.type].nud) {
         compiler_error(compiler, &compiler->current_token, "expected an expression");
@@ -500,6 +572,18 @@ static void nud_unary_op(Compiler* compiler) {
     }
 }
 
+static void led_call(Compiler* compiler) {
+    uint8_t arg_count = 0;
+    if (compiler->current_token.type != token_close_paren) {
+        do {
+            compiler_parse_expression(compiler, precedence_none);
+            arg_count += 1;
+        } while (compiler_match(compiler, token_comma));
+    }
+    compiler_consume(compiler, token_close_paren, "expected ) after function arguments");
+    compiler_emit_bytes(compiler, op_call, arg_count);
+}
+
 static void led_and_or(Compiler* compiler) {
     TokenType t = compiler->previous_token.type;
     size_t jump = compiler_stub_jump(compiler, t == token_or ? op_jump_true : op_jump_false);
@@ -543,10 +627,12 @@ static void led_right_op(Compiler* compiler) {
 
 Denotation statements[] = {
     [token_for] = statement_for,
+    [token_fun] = statement_function_declaration,
     [token_if] = statement_if,
     [token_let] = statement_declaration,
     [token_open_brace] = statement_block,
     [token_print] = statement_print,
+    [token_return] = statement_return,
     [token_var] = statement_declaration,
     [token_switch] = statement_switch,
     [token_while] = statement_while,
@@ -555,7 +641,7 @@ Denotation statements[] = {
 Rule rules[] = {
     [token_bang] = { nud_unary_op, 0, precedence_none },
     [token_quote] = { nud_unary_op, 0, precedence_none },
-    [token_open_paren] = { nud_group, 0, precedence_none },
+    [token_open_paren] = { nud_group, led_call, precedence_call },
     [token_close_paren] = { 0, 0, precedence_none },
     [token_star] = { 0, led_binary_op, precedence_multiplication },
     [token_plus] = { nud_unary_op, led_binary_op, precedence_addition },
@@ -584,14 +670,14 @@ Rule rules[] = {
     [token_eof] = { 0, 0, precedence_eof },
 };
 
-bool compile_chunk(const char* source, Chunk* chunk) {
+bool compile_function(const char* source, Function* function) {
     Compiler compiler;
     Lexer lexer;
     lexer_init(&lexer, source);
-    compiler.chunk = chunk;
+    compiler.function = function;
     hamt_init(&compiler.constants);
     value_array_init(&compiler.scopes);
-    value_array_push(&compiler.scopes, VALUE_FROM_POINTER(&chunk->vm->global_scope));
+    value_array_push(&compiler.scopes, VALUE_FROM_POINTER(&function->chunk->vm->global_scope));
     compiler.locals_count = 0;
     compiler.lexer = &lexer;
     compiler.error = false;
